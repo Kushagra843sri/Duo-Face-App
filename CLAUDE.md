@@ -7,8 +7,41 @@ Full spec: `docs/SPEC.md`. Read the relevant section before building a feature. 
 ## Stack
 - App: React Native + Expo, Expo Router, NativeWind, Lucide icons, TypeScript
 - Server: Node.js + Express, Socket.io with Redis adapter, TypeScript
-- DB: client's existing MongoDB (use the same driver/ODM the Customer App uses) — collections and fields in `docs/schema.md`
+- DB: client's existing Cloud Firestore (the Customer App's — "Allz Bharat" — Firebase project), accessed via the Firebase Admin SDK from the Duo-Face server only, never from the mobile app. Existing collections/fields are documented in `docs/integration/CUSTOMER_APP_REQUIREMENTS.md`, sourced from the real Customer App code, not assumed. New Duo-Face-owned collections are designed separately (see `docs/decisions/002-customer-app-integration.md`, `docs/decisions/003-inventory-and-financial-boundaries.md`)
 - Services: Google Maps (India pricing), Firebase (FCM + phone auth), Cloudflare R2, Razorpay
+
+## Architecture
+
+```
+                 ┌────────────────────┐
+                 │   Customer App     │
+                 │  (Allz Bharat)     │
+                 │ Existing Firestore │
+                 │ Existing Auth      │
+                 └─────────┬──────────┘
+                           │
+                    Firebase Admin SDK
+                           │
+                           ▼
+                 ┌────────────────────┐
+                 │ Duo-Face Backend   │
+                 │ Express + TS       │
+                 │                    │
+                 │ Services           │
+                 │ Integration Layer  │
+                 │ Authorization      │
+                 └─────────┬──────────┘
+                           │
+                      REST / WS
+                           │
+                           ▼
+                 ┌────────────────────┐
+                 │ Duo-Face Mobile    │
+                 │ React Native/Expo  │
+                 └────────────────────┘
+```
+
+The mobile app never receives Firebase Admin credentials and never talks to Firestore directly — only the Duo-Face server does, through the Admin SDK.
 
 ## Repo layout
 - `app/` — Expo app
@@ -29,16 +62,16 @@ Full spec: `docs/SPEC.md`. Read the relevant section before building a feature. 
 
 ## Rules that must never be broken
 - The app never talks to the database directly. Every write goes through the API.
-- Role is read from the JWT on the server. Never trust a role sent by the app.
+- Role is read from the JWT on the server. Never trust a role sent by the app. The Customer App's Firebase ID tokens carry no role claim, so exactly how an authenticated Customer App identity maps to Duo-Face merchant/driver authorization is still an open integration decision (see `docs/decisions/002-customer-app-integration.md`) — but this rule itself is not conditional on that: no route ever trusts a client-sent role, regardless of how identity mapping is eventually resolved.
 - Every route checks role AND ownership (merchant → own store only, driver → own trips only).
-- Money is stored as integer paise. Never use floats for money.
+- The Customer App's existing monetary fields (Firestore) are floats in rupees today — never silently reinterpret them; convert explicitly and document units wherever Duo-Face reads them at the integration boundary. Any new Duo-Face-owned financial data (wallet ledger, payouts, settlement) is stored as integer paise (or another explicitly lossless representation) — never floats. Never do financial arithmetic in floats anywhere in Duo-Face's own code, on either side of that boundary.
 - Wallet balance is derived from the `wallet_ledger` collection. The ledger is append-only.
 - Order status changes only through `services/orderState` using the allowed-transition map. Write every change to `order_events`.
-- Stock decrement at checkout is a single atomic `findOneAndUpdate` with `{ stock: { $gte: qty } }` and `$inc: { stock: -qty }`, never read-then-write. Use a MongoDB transaction when an order touches more than one document.
+- The Customer App's existing `products` documents have a boolean `inStock`, not a quantity — treat it as the existing availability signal only, read-only from Duo-Face's side. Real quantity-based inventory is a new, separate Duo-Face-owned model (not a `stock` field bolted onto the existing `products` document) — designed later, using Firestore transactions or `FieldValue.increment()` for atomic updates, never read-then-write. See `docs/decisions/003-inventory-and-financial-boundaries.md`.
 - Delivery OTP is stored hashed; lock after 5 wrong attempts.
 - KYC files go to the private R2 bucket via pre-signed URLs. Never log or return raw document URLs.
 - Secrets only in `.env` (gitignored). Never hardcode keys. Update `.env.example` when adding one.
-- Do not modify the Customer App's screens or existing fields in existing collections. Only add new fields or collections.
+- Do not modify the Customer App's screens or existing fields in existing collections. Treat `users`, `shops`, `products`, `categories`, `orders`, and `payment_intents` as externally-owned/shared data — only add new fields to them, or add entirely new collections for Duo-Face-owned concepts (driver profiles, driver KYC metadata, delivery trips/assignments, driver location state, wallet ledger, settlement records, inventory quantity state, audit events). Exact new collection shapes are designed when each feature is built, not assumed now.
 
 ## Real-time conventions
 - REST does writes; Socket.io only broadcasts what changed.
