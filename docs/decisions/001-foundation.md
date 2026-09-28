@@ -45,3 +45,5 @@ The only working endpoint is `GET /health`.
 ## Known blockers
 
 Tracked in full in `docs/integration/CUSTOMER_APP_REQUIREMENTS.md`. In short: the Customer App's database engine and schema, its API contract, its auth mechanism, its order/inventory model, its realtime layer (if any), its payment gateway, and its Firebase usage are all unconfirmed. No feature that depends on any of these can move past its current interface/stub until the client answers.
+
+See also `docs/decisions/002-customer-app-integration.md` (Phase 1.5) for the two open architectural options for this integration and the full unresolved-items list.
