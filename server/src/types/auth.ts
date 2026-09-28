@@ -1,8 +1,21 @@
+import type { Request } from 'express';
+
 export type Role = 'merchant' | 'driver';
 
+/** Everything Firebase ID-token verification alone guarantees. Nothing about role. */
+export interface VerifiedFirebaseIdentity {
+  firebaseUid: string;
+}
+
+/** Produced by role resolution from a VerifiedFirebaseIdentity — see server/src/services/roleResolver.ts. */
 export interface AuthenticatedPrincipal {
-  userId: string;
+  firebaseUid: string;
   role: Role;
-  storeId?: string; // present when role === 'merchant'
+  shopId?: string; // present when role === 'merchant' — matches the Customer App's real `shops` collection name
   driverId?: string; // present when role === 'driver'
+}
+
+export interface AuthenticatedRequest extends Request {
+  identity?: VerifiedFirebaseIdentity;
+  principal?: AuthenticatedPrincipal;
 }

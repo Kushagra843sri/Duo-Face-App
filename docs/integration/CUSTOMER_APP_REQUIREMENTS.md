@@ -140,6 +140,24 @@ See `docs/decisions/002-customer-app-integration.md` for the architecture decisi
 - **Still open**: who owns/administers the (not yet created) Firebase project long-term; whether Duo-Face gets a distinct scoped service account; rate limits (§14); object storage ownership (§12).
 - **Resolved 2026-09-28 (Phase 1.75)**: the CLAUDE.md conflicts this review surfaced (MongoDB, integer-paise-only, Mongo-syntax stock decrement) have been reconciled directly in `CLAUDE.md` — see `docs/decisions/003-inventory-and-financial-boundaries.md` for the inventory/financial boundary rationale.
 
+## 19. Identity & Role Mapping Evidence (Phase 3)
+
+- **Status**: CONFIRMED ABSENT (both merchant and driver mapping)
+- Direct source review, not inference from §4/§5/§8's prose — every row below cites the exact file. Full reasoning and implications: `docs/decisions/005-identity-and-role-mapping.md`.
+
+| Question | Actual evidence | Source file | Status |
+|---|---|---|---|
+| Firebase UID → user document | `users/{uid}`, doc ID = Firebase Auth UID; written by `createUserProfile({uid, phoneNumber, name, displayName, createdAt})` | `customer_app/lib/features/auth/data/user_repository_impl.dart` | confirmed |
+| User role field | No `role` field written or read anywhere — repo-wide grep, zero matches outside compiled `lib/` dupes | (repo-wide grep) | absent |
+| User → shop relationship | `createUserProfile` writes only uid/phoneNumber/name/displayName/createdAt — no shop link | `customer_app/lib/features/auth/data/user_repository_impl.dart` | absent |
+| Shop → owner relationship | `Shop` model/doc has no owner/admin field: `id, name, address, imageUrl, rating, isOpen, isActive, createdAt` only | `customer_app/lib/features/shops/models/shop.dart`; `tools/seed_commerce/seed.js` | absent |
+| Existing merchant entity | No `merchants` collection/model/route anywhere; "merchant" appears only in a descriptive code comment | (repo-wide grep) | absent |
+| Existing driver entity | No `drivers`/`riders`/`deliveryPartners` collection, model, or field anywhere | (repo-wide grep, zero matches) | absent |
+| Driver → user relationship | N/A — no driver entity exists to relate | — | absent |
+| Order → shop relationship | `OrderDocument.shopId: string` on every order | `functions/src/types/order.types.ts` | confirmed |
+| Order → driver relationship | No driver/rider field on `OrderDocument` | `functions/src/types/order.types.ts` | absent |
+| Firebase custom claims | `setCustomUserClaims` never called anywhere in the Functions or Flutter code | (repo-wide grep) | absent |
+
 ---
 
 ## Answering this checklist
