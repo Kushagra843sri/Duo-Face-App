@@ -26,6 +26,23 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Duo-Face uses your location to share where you are for deliveries.",
+          "locationAlwaysAndWhenInUsePermission": "Duo-Face shares your location every minute while you are on duty, even when the app is in the background, so nearby orders can reach you. It stops when you go off duty.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Duo-Face uses your camera to take your live profile and vehicle photos.",
+          "photosPermission": "Duo-Face lets you choose a shop photo from your gallery."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
