@@ -1,5 +1,8 @@
 import type { Request } from 'express';
 
+import type { DuoFaceDriver } from './duoFaceDriver';
+import type { DuoFaceShop } from './duoFaceShop';
+
 export type Role = 'merchant' | 'driver';
 
 /** Everything Firebase ID-token verification alone guarantees. Nothing about role. */
@@ -18,4 +21,6 @@ export interface AuthenticatedPrincipal {
 export interface AuthenticatedRequest extends Request {
   identity?: VerifiedFirebaseIdentity;
   principal?: AuthenticatedPrincipal;
+  shop?: DuoFaceShop; // attached by middleware/requireActiveMerchantShop.ts
+  driver?: DuoFaceDriver; // attached by middleware/requireActiveDriver.ts
 }

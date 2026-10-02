@@ -5,6 +5,21 @@ import helmet from 'helmet';
 import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
 import { createAuthRouter } from './routes/auth';
+import { createDriverRouter } from './routes/driver';
+import { createDriverAssignmentsRouter } from './routes/driver/assignments';
+import { createCustomerNotificationsRouter } from './routes/customer/notifications';
+import { createCustomerTrackingRouter } from './routes/customer/tracking';
+import { createDriverProfileRouter } from './routes/driver/profile';
+import { createMerchantProfileRouter } from './routes/merchant/profile';
+import { createDriverDutyRouter } from './routes/driver/duty';
+import { createDriverLocationRouter } from './routes/driver/location';
+import { createExotelWebhookRouter } from './routes/webhooks/exotel';
+import { createDriverTrackingRouter } from './routes/driver/tracking';
+import { createMerchantRouter } from './routes/merchant';
+import { createMerchantDeliveriesRouter } from './routes/merchant/deliveries';
+import { createMerchantInventoryRouter } from './routes/merchant/inventory';
+import { createMerchantOrdersRouter } from './routes/merchant/orders';
+import { createMerchantProductsRouter } from './routes/merchant/products';
 
 export const app = express();
 
@@ -25,6 +40,21 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/auth', createAuthRouter());
+app.use('/customer', createCustomerTrackingRouter());
+app.use('/customer/notifications', createCustomerNotificationsRouter());
+app.use('/merchant', createMerchantRouter());
+app.use('/merchant/profile', createMerchantProfileRouter());
+app.use('/merchant/inventory', createMerchantInventoryRouter());
+app.use('/merchant/products', createMerchantProductsRouter());
+app.use('/merchant/orders', createMerchantOrdersRouter());
+app.use('/merchant/deliveries', createMerchantDeliveriesRouter());
+app.use('/driver', createDriverRouter());
+app.use('/driver/profile', createDriverProfileRouter());
+app.use('/driver/duty', createDriverDutyRouter());
+app.use('/driver/location', createDriverLocationRouter());
+app.use('/driver/tracking', createDriverTrackingRouter());
+app.use('/driver/assignments', createDriverAssignmentsRouter());
+app.use('/webhooks/exotel', createExotelWebhookRouter());
 
 app.use(notFound);
 app.use(errorHandler);
