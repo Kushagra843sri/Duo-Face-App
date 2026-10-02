@@ -1,5 +1,5 @@
 import { Camera, FileText, MapPin, Store } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text } from 'react-native';
 
 import { getMerchantProfile, saveMerchantProfile } from '@/api/profile';
@@ -13,6 +13,7 @@ import { ProfileSummary } from '@/components/profile/ProfileSummary';
 import { SectionForm } from '@/components/profile/SectionForm';
 import { Button, Muted, Screen, SectionCard } from '@/components/ui';
 import { useApiResource } from '@/hooks/useApiResource';
+import { recoverPendingPhoto } from '@/lib/profilePhotos';
 import { getCurrentLocationInput, getLocationPermission, requestLocationPermission } from '@/lib/locationService';
 import { isValidEmail, isValidFssai, isValidGstin, isValidPan, isValidPhone, isValidPincode, required, rule, upper, validate } from '@/lib/validators';
 
@@ -150,11 +151,16 @@ function LocationSection({ profile, onSaved }: { profile: MerchantProfile; onSav
 export default function MerchantProfileScreen() {
   const { data, isLoading, error, retry } = useApiResource(getMerchantProfile);
 
-  if (isLoading) return <LoadingState label="Loading your profile…" />;
+  // If Android killed the app while the camera was open, finish that photo now.
+  useEffect(() => {
+    void recoverPendingPhoto('merchant').then((recovered) => recovered && retry());
+  }, [retry]);
+
+  if (isLoading && !data) return <LoadingState label="Loading your profile…" />;
   if (error || !data) return <ErrorState error={error} retry={retry} />;
 
   return (
-    <Screen keyboardShouldPersistTaps="handled">
+    <Screen keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled>
       <ProfileSummary
         name={data.personal?.shopName ?? 'Your shop'}
         subtitle={data.personal?.ownerName}

@@ -12,6 +12,12 @@ import type { PreviewRole } from '@/lib/preview';
 const mask = (value: string, visible = 4) => `${'•'.repeat(Math.max(0, value.length - visible))}${value.slice(-visible)}`;
 const compact = (value: string) => value.replace(/[\s-]/g, '');
 
+/** Photos really taken on the device in preview (kind -> local uri); shown instead of the placeholder. */
+const takenPhotos = new Map<string, string>();
+export function setPreviewPhotoUri(role: string, kind: string, uri: string) {
+  takenPhotos.set(`${role}:${kind}`, uri);
+}
+
 /** Tiny inline "photo" so thumbnails render with no network. */
 const photoData = (colour: string, letter: string) =>
   `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="${colour}"/><text x="200" y="175" font-size="120" text-anchor="middle" fill="white" font-family="sans-serif">${letter}</text></svg>`)}`;
@@ -175,11 +181,11 @@ export function previewProfileRoute(role: PreviewRole, method: string, pathname:
   if (sub === 'photo-confirm' && method === 'POST') {
     const kind = String(body.kind);
     if (role === 'driver') {
-      if (kind === 'selfie') driver.photos.selfieUrl = photoData('#4f46e5', 'Me');
-      if (kind === 'vehicle') driver.photos.vehicleUrl = photoData('#0f766e', '🛵');
+      if (kind === 'selfie') driver.photos.selfieUrl = takenPhotos.get('driver:selfie') ?? photoData('#4f46e5', 'Me');
+      if (kind === 'vehicle') driver.photos.vehicleUrl = takenPhotos.get('driver:vehicle') ?? photoData('#0f766e', '🛵');
       refreshDriver(true, false);
     } else {
-      merchant.photoUrl = photoData('#059669', 'S');
+      merchant.photoUrl = takenPhotos.get('merchant:shop') ?? photoData('#059669', 'S');
       refreshMerchant(false, false);
     }
     return null;

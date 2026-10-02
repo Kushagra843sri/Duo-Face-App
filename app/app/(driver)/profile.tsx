@@ -1,5 +1,5 @@
 import { Bike, Camera, IdCard, UserRound } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { getDriverProfile, saveDriverProfile } from '@/api/profile';
 import type { DriverProfile } from '@/api/profile';
@@ -12,6 +12,7 @@ import { ProfileSummary } from '@/components/profile/ProfileSummary';
 import { SectionForm } from '@/components/profile/SectionForm';
 import { FilterChips, Muted, Screen, SectionCard } from '@/components/ui';
 import { useApiResource } from '@/hooks/useApiResource';
+import { recoverPendingPhoto } from '@/lib/profilePhotos';
 import { isAdultDob, isFutureDate, isValidAadhaar, isValidLicence, isValidPan, isValidPhone, isValidPincode, isValidVehicleNumber, required, rule, upper, validate } from '@/lib/validators';
 
 type Reload = () => void;
@@ -152,11 +153,16 @@ function VehicleSection({ profile, onSaved }: { profile: DriverProfile; onSaved:
 export default function DriverProfileScreen() {
   const { data, isLoading, error, retry } = useApiResource(getDriverProfile);
 
-  if (isLoading) return <LoadingState label="Loading your profile…" />;
+  // If Android killed the app while the camera was open, finish that photo now.
+  useEffect(() => {
+    void recoverPendingPhoto('driver').then((recovered) => recovered && retry());
+  }, [retry]);
+
+  if (isLoading && !data) return <LoadingState label="Loading your profile…" />;
   if (error || !data) return <ErrorState error={error} retry={retry} />;
 
   return (
-    <Screen keyboardShouldPersistTaps="handled">
+    <Screen keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled>
       <ProfileSummary
         name={data.personal?.fullName ?? 'Your profile'}
         subtitle={data.personal?.contactPhone}
