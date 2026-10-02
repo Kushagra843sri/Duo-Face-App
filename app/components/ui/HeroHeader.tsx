@@ -41,7 +41,7 @@ export function HeroHeader({ eyebrow, title, subtitle, onPress, actionLabel }: P
   );
   if (!onPress) return content;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${title}. ${actionLabel ?? 'Open profile'}`} style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] })}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${title}. ${actionLabel ?? 'Open profile'}`}>
       {content}
     </Pressable>
   );

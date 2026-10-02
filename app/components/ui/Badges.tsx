@@ -48,8 +48,8 @@ export function StatusBadge({ status, kind }: { status: string; kind: 'order' | 
 }
 
 export function StatCard({ label, value, icon, onPress }: { label: string; value: number | string; icon: LucideIcon; onPress?: () => void }) {
-  const card = (
-    <Card className="flex-1 gap-3 p-3">
+  const body = (
+    <>
       <IconChip icon={icon} size={36} />
       <View>
         <Text className="text-3xl font-extrabold text-ink dark:text-ink-dark">{value}</Text>
@@ -57,17 +57,18 @@ export function StatCard({ label, value, icon, onPress }: { label: string; value
           {label}
         </Text>
       </View>
-    </Card>
+    </>
   );
-  if (!onPress) return card;
+  if (!onPress) {
+    return <Card className="flex-1 gap-3 p-3">{body}</Card>;
+  }
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${label}: ${value}`}
-      style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] })}
-    >
-      {card}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={{ flex: 1 }}>
+      {({ pressed }) => (
+        <Card className="gap-3 p-3" style={{ opacity: pressed ? 0.85 : 1 }}>
+          {body}
+        </Card>
+      )}
     </Pressable>
   );
 }

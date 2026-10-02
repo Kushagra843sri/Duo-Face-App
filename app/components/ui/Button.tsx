@@ -46,24 +46,26 @@ export function Button({ label, onPress, variant = 'primary', icon: Icon, disabl
       accessibilityState={{ disabled: !!inactive, busy: !!loading }}
       disabled={inactive}
       onPress={onPress}
-      style={({ pressed }) => ({
-        backgroundColor: colors(pressed).bg,
-        opacity: inactive ? 0.5 : 1,
-        minHeight: small ? 40 : 52,
-        paddingHorizontal: small ? 14 : 20,
-        borderRadius: small ? 12 : 16,
-        alignSelf: (fullWidth ?? !small) ? 'stretch' : 'flex-start',
-        justifyContent: 'center',
-      })}
+      style={{ alignSelf: (fullWidth ?? !small) ? 'stretch' : 'flex-start' }}
     >
       {({ pressed }) => {
-        const fg = colors(pressed).fg;
+        const { bg, fg } = colors(pressed);
         return (
-          <View className="flex-row items-center justify-center gap-2">
+          <View
+            style={{
+              backgroundColor: bg,
+              opacity: inactive ? 0.5 : 1,
+              minHeight: small ? 40 : 52,
+              paddingHorizontal: small ? 14 : 20,
+              borderRadius: small ? 12 : 16,
+              justifyContent: 'center',
+              alignItems: 'center',
+              flexDirection: 'row',
+              gap: 8,
+            }}
+          >
             {loading ? <ActivityIndicator size="small" color={fg} /> : Icon ? <Icon size={small ? 16 : 20} color={fg} /> : null}
-            <Text style={{ color: fg }} className={small ? 'text-sm font-semibold' : 'text-base font-bold'}>
-              {label}
-            </Text>
+            <Text style={{ color: fg, fontSize: small ? 14 : 16, fontWeight: small ? '600' : '700' }}>{label}</Text>
           </View>
         );
       }}
@@ -89,25 +91,24 @@ export function IconButton({
   const palette = usePalette();
   const fg = tone === 'danger' ? DANGER : soft.fg;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      disabled={disabled}
-      onPress={onPress}
-      hitSlop={4}
-      style={({ pressed }) => ({
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: pressed ? palette.line : tone === 'danger' ? 'transparent' : soft.bg,
-        borderWidth: tone === 'danger' ? 1 : 0,
-        borderColor: palette.line,
-        opacity: disabled ? 0.5 : 1,
-      })}
-    >
-      <Icon size={20} color={fg} />
+    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} hitSlop={4}>
+      {({ pressed }) => (
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 14,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: pressed ? palette.line : tone === 'danger' ? 'transparent' : soft.bg,
+            borderWidth: tone === 'danger' ? 1 : 0,
+            borderColor: palette.line,
+            opacity: disabled ? 0.5 : 1,
+          }}
+        >
+          <Icon size={20} color={fg} />
+        </View>
+      )}
     </Pressable>
   );
 }

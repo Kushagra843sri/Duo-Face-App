@@ -57,15 +57,13 @@ export function PressableCard({
   const accent = useAccentSoft();
   const palette = usePalette();
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] })}
-    >
-      <Card className="flex-row items-center gap-3" style={accentEdge ? { borderLeftWidth: 4, borderLeftColor: accent.fg } : undefined}>
-        <View className="flex-1 gap-2">{children}</View>
-        {onPress ? <ChevronRight size={20} color={palette.muted} /> : null}
-      </Card>
+    <Pressable onPress={onPress} accessibilityRole="button">
+      {({ pressed }) => (
+        <Card className="flex-row items-center gap-3" style={{ opacity: pressed ? 0.85 : 1, ...(accentEdge ? { borderLeftWidth: 4, borderLeftColor: accent.fg } : {}) }}>
+          <View className="flex-1 gap-2">{children}</View>
+          {onPress ? <ChevronRight size={20} color={palette.muted} /> : null}
+        </Card>
+      )}
     </Pressable>
   );
 }
