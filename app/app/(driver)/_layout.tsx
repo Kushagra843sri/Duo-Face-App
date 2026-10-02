@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { ClipboardList, LayoutDashboard, MapPin } from 'lucide-react-native';
 
 import { getDriverMe } from '@/api/driver';
+import { AutoLocation } from '@/components/AutoLocation';
 import { ErrorState } from '@/components/ErrorState';
 import { HeaderBack } from '@/components/HeaderBack';
 import { LoadingState } from '@/components/LoadingState';
@@ -12,25 +13,28 @@ import { useApiResource } from '@/hooks/useApiResource';
 function DriverTabs() {
   const tabOptions = useTabOptions();
   return (
-    <Tabs screenOptions={{ headerShown: true, ...tabOptions }}>
-      <Tabs.Screen
-        name="index"
-        options={{ title: 'Dashboard', tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size} /> }}
-      />
-      <Tabs.Screen
-        name="assignments"
-        options={{
-          title: 'Assignments',
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', href: null, headerLeft: () => <HeaderBack fallback="/(driver)" /> }} />
-      <Tabs.Screen
-        name="location"
-        options={{ title: 'Location', tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} /> }}
-      />
-    </Tabs>
+    <>
+    <AutoLocation />
+      <Tabs screenOptions={{ headerShown: true, ...tabOptions }}>
+        <Tabs.Screen
+          name="index"
+          options={{ title: 'Dashboard', tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size} /> }}
+        />
+        <Tabs.Screen
+          name="assignments"
+          options={{
+            title: 'Assignments',
+            headerShown: false,
+            tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size} />,
+          }}
+        />
+        <Tabs.Screen name="profile" options={{ title: 'Profile', href: null, headerLeft: () => <HeaderBack fallback="/(driver)" /> }} />
+        <Tabs.Screen
+          name="location"
+          options={{ title: 'Location', tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} /> }}
+        />
+      </Tabs>
+    </>
   );
 }
 
