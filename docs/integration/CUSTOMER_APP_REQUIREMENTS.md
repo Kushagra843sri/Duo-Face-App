@@ -6,6 +6,8 @@ See `docs/decisions/002-customer-app-integration.md` for the architecture decisi
 
 **Read this first**: Allz Bharat is an *archived, undeployed* snapshot — "Development Paused," 0 live Cloud Functions, 0 live secrets, strict zero-access handover (no previous developer's Firebase project, credentials, or Cashfree account included). There is currently no *running* Customer App backend anywhere — whoever continues this needs to create a fresh Firebase project and deploy it before anything below is reachable over the network.
 
+> Provisioning steps for a working Firebase/Firestore environment (and how Duo-Face plugs into it) are in [CUSTOMER_APP_SETUP_RUNBOOK.md](CUSTOMER_APP_SETUP_RUNBOOK.md).
+
 ---
 
 ## 1. Customer App Overview
