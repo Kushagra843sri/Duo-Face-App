@@ -85,7 +85,7 @@ export function PhoneSignIn() {
         </View>
         <Text className="text-3xl font-extrabold text-ink dark:text-ink-dark">Duo-Face</Text>
         <Text className="text-center text-sm text-muted dark:text-muted-dark">
-          {confirmation === null ? 'Sign in with your phone number to manage your shop or deliveries.' : 'Enter the 6-digit code we sent you.'}
+          {confirmation === null ? 'Sign in or create an account with your phone number.' : 'Enter the 6-digit code we sent you.'}
         </Text>
       </View>
 

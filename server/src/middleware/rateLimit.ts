@@ -39,6 +39,7 @@ interface Options {
   /** Must derive from the server-verified identity, never client input. */
   keyFor: (req: AuthenticatedRequest) => string | undefined;
   now?: () => number;
+  message?: string;
 }
 
 /**
@@ -47,7 +48,7 @@ interface Options {
  * effective ceiling is N x max. Good enough to stop a pathological client
  * flooding Redis; a Redis-backed limiter can replace it later.
  */
-export function createRateLimiter({ windowMs, max, keyFor, now = Date.now }: Options) {
+export function createRateLimiter({ windowMs, max, keyFor, now = Date.now, message = 'Too many location updates. Slow down.' }: Options) {
   const limiter = new FixedWindowLimiter(windowMs, max, now);
 
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -60,7 +61,7 @@ export function createRateLimiter({ windowMs, max, keyFor, now = Date.now }: Opt
     const result = limiter.hit(key);
     if (!result.allowed) {
       res.setHeader('Retry-After', String(result.retryAfterSeconds));
-      res.status(429).json({ error: 'rate_limited', message: 'Too many location updates. Slow down.' });
+      res.status(429).json({ error: 'rate_limited', message });
       return;
     }
     next();

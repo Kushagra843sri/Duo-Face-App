@@ -7,10 +7,13 @@ import { resolveRole } from '../../middleware/resolveRole';
 import { DuoFaceRoleResolver } from '../../services/roleResolver';
 import type { RoleResolver } from '../../services/roleResolver';
 import type { AuthenticatedRequest } from '../../types/auth';
+import { RegistrationService } from '../../services/registrationService';
+import { createRegisterRouter } from './register';
 
 export function createAuthRouter(
   verifier: FirebaseIdentityVerifier = new FirebaseAuthService(),
-  roleResolver: RoleResolver = new DuoFaceRoleResolver()
+  roleResolver: RoleResolver = new DuoFaceRoleResolver(),
+  registrationService: RegistrationService = new RegistrationService()
 ) {
   const router = Router();
 
@@ -22,6 +25,8 @@ export function createAuthRouter(
       res.json(req.principal);
     }
   );
+
+  router.use(createRegisterRouter(verifier, registrationService));
 
   return router;
 }
