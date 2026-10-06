@@ -7,9 +7,11 @@ import { AppError } from '../middleware/errorHandler';
 import { buildCompleteness, MERCHANT_PROFILES_COLLECTION, reviewNote } from '../types/profile';
 import type { MerchantProfileInput, ReviewRecord, VerificationStatus } from '../types/profile';
 import { normalizeUpper } from '../validators/indianIds';
+import { stockKey } from '../types/duoFaceShop';
 import { appEvents } from './appEvents';
 import type { AppEvents } from './appEvents';
 import { DuoFaceShopService } from './duoFaceShopService';
+import { shopListingHub } from './shopListingService';
 import { FieldCrypto, lastChars, maskLast } from './fieldCrypto';
 import { nextStatus } from './driverProfileService';
 import { ProfilePhotoService } from './profilePhotoService';
@@ -186,7 +188,13 @@ export class MerchantProfileService implements PhotoTarget {
     }
 
     // Display fields live on the main shop document.
-    if (input.personal) await this.shops.updateName(shopId, input.personal.shopName);
+    if (input.personal) {
+      await this.shops.updateName(shopId, input.personal.shopName);
+      // Customers see the same name and address the owner entered (best effort; never blocks the save).
+      const shop = await this.shops.getById(shopId);
+      const a = input.personal.address;
+      if (shop) void shopListingHub.syncDetails(stockKey(shop), { name: input.personal.shopName, address: `${a.line1}, ${a.city} ${a.pincode}` });
+    }
     if (input.pickupLocation) await this.shops.setPickupLocation(shopId, input.pickupLocation);
     return this.toDto(doc);
   }

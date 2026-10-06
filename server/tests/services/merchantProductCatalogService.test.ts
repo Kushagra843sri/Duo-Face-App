@@ -79,18 +79,18 @@ describe('MerchantProductCatalogService.listCatalog — linked shop, product joi
 
     const entries = await service.listCatalog(buildShop());
     expect(entries).toEqual([
-      { productId: 'product-1', name: 'Amul Milk', price: 28, inStock: true, inventory: null },
+      { productId: 'product-1', name: 'Amul Milk', description: null, price: 28, inStock: true, isActive: true, inventory: null },
     ]);
   });
 
-  it('attaches Duo-Face inventory (keyed by the Duo-Face shopId) when a matching record exists', async () => {
+  it('attaches Duo-Face inventory (keyed by the customer-facing shop id, the one customers use) when a matching record exists', async () => {
     const productProvider = fakeProductProvider([
       { id: 'product-1', shopId: 'shop-1', name: 'Amul Milk', price: 28, inStock: true },
     ]);
     const inventoryStore = createFakeInventoryStore({
-      'duo-face-shop-1__product-1': {
-        inventoryId: 'duo-face-shop-1__product-1',
-        shopId: 'duo-face-shop-1',
+      'shop-1__product-1': {
+        inventoryId: 'shop-1__product-1',
+        shopId: 'shop-1',
         productId: 'product-1',
         quantity: 40,
         reservedQuantity: 5,
@@ -109,6 +109,8 @@ describe('MerchantProductCatalogService.listCatalog — linked shop, product joi
         name: 'Amul Milk',
         price: 28,
         inStock: true,
+        description: null,
+        isActive: true,
         inventory: { quantity: 40, reservedQuantity: 5, status: 'active' },
       },
     ]);

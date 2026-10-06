@@ -34,3 +34,14 @@ export const duoFaceShopSchema = z.object({
 });
 
 export type DuoFaceShop = z.infer<typeof duoFaceShopSchema>;
+
+/**
+ * The id a shop's stock is stored under. Customers find stock through the
+ * customer-facing shop id (the same id products and orders carry), so that is
+ * the one canonical key; a shop not yet listed for customers falls back to its
+ * own id. Using one function everywhere is what keeps what the shop sets and
+ * what the customer sees the same stock (decision 031).
+ */
+export function stockKey(shop: Pick<DuoFaceShop, 'shopId' | 'customerAppShopId'>): string {
+  return shop.customerAppShopId ?? shop.shopId;
+}

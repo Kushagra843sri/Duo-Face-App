@@ -2,6 +2,7 @@ import { FirestoreCustomerAppOrderProvider } from '../integrations/customerApp/F
 import type { CustomerAppOrderProvider } from '../integrations/customerApp/CustomerAppOrderProvider';
 import { createDeliveryGeocoder } from '../integrations/geocoding/createDeliveryGeocoder';
 import type { DeliveryGeocoder } from '../integrations/geocoding/DeliveryGeocoder';
+import { savedDeliveryPoint } from './deliveryPoint';
 import { LiveLocationUnavailableError } from '../integrations/redis/LiveDriverLocationStore';
 import type { LiveDriverLocationStore } from '../integrations/redis/LiveDriverLocationStore';
 import { createLiveDriverLocationStore } from '../integrations/redis/createLiveDriverLocationStore';
@@ -76,7 +77,7 @@ export class CustomerTrackingService {
 
     const tracking: CustomerTracking = { available: false, status, updatedAt };
 
-    const destination = await this.resolveDestination(order.delivery.fullAddress);
+    const destination = savedDeliveryPoint(order.delivery) ?? (await this.resolveDestination(order.delivery.fullAddress));
     if (destination) tracking.destination = destination;
 
     try {

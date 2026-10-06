@@ -2,6 +2,7 @@ import { FirestoreCustomerAppOrderProvider } from '../integrations/customerApp/F
 import type { CustomerAppOrderProvider } from '../integrations/customerApp/CustomerAppOrderProvider';
 import { FirestoreCustomerAppShopProvider } from '../integrations/customerApp/FirestoreCustomerAppShopProvider';
 import type { CustomerAppShopProvider } from '../integrations/customerApp/CustomerAppShopProvider';
+import { savedDeliveryPoint } from './deliveryPoint';
 import { createDeliveryGeocoder } from '../integrations/geocoding/createDeliveryGeocoder';
 import type { DeliveryGeocoder } from '../integrations/geocoding/DeliveryGeocoder';
 import { AppError } from '../middleware/errorHandler';
@@ -79,7 +80,7 @@ export class DeliveryOrderService {
     }
 
     const shopName = await this.readShopName(assignment.customerAppShopId);
-    const destination = includeDestination ? await this.resolveDestination(order.delivery.fullAddress) : null;
+    const destination = includeDestination ? (savedDeliveryPoint(order.delivery) ?? (await this.resolveDestination(order.delivery.fullAddress))) : null;
     return {
       assignmentId: assignment.assignmentId,
       orderId: order.orderId,

@@ -11,6 +11,7 @@ import { customerAppShopSnapshotSchema } from '../types/customerAppShop';
 import { duoFaceIdentitySchema } from '../types/duoFaceIdentity';
 import type { DuoFaceIdentity } from '../types/duoFaceIdentity';
 import { duoFaceShopSchema, pickupLocationSchema } from '../types/duoFaceShop';
+import { newListingData } from './shopListingService';
 import type { PickupLocation } from '../types/duoFaceShop';
 import type { DuoFaceShop } from '../types/duoFaceShop';
 
@@ -24,6 +25,9 @@ const provisionMerchantShopInputSchema = z.object({
   // Optional explicit pickup point (exact, wins over geocoding). If omitted
   // and a Customer App shop is linked, its address is geocoded once here.
   pickupLocation: pickupLocationSchema.optional(),
+  // Create the customer-visible shop record too (CLOSED until the owner opens it), under the SAME id, so the
+  // merchant side and the customer side share one id for the shop (decision 031). Not for linking an existing shop.
+  listForCustomers: z.boolean().optional(),
 });
 
 export type ProvisionMerchantShopInput = z.infer<typeof provisionMerchantShopInputSchema>;
@@ -33,6 +37,8 @@ interface AtomicWrite {
   identityData: Record<string, unknown>;
   shopId: string;
   shopData: Record<string, unknown>;
+  /** The customer-visible shop record, written in the same transaction. */
+  customerShop?: { id: string; data: Record<string, unknown> };
 }
 
 /**
@@ -46,13 +52,14 @@ export interface DuoFaceProvisioningTransaction {
 }
 
 export class FirestoreDuoFaceProvisioningTransaction implements DuoFaceProvisioningTransaction {
-  async runAtomic({ identityFirebaseUid, identityData, shopId, shopData }: AtomicWrite): Promise<void> {
+  async runAtomic({ identityFirebaseUid, identityData, shopId, shopData, customerShop }: AtomicWrite): Promise<void> {
     const { getFirestore } = await import('firebase-admin/firestore');
     const db = getFirestore(getFirebaseAdminApp());
 
     await db.runTransaction(async (tx) => {
       tx.set(db.collection('duo_face_identities').doc(identityFirebaseUid), identityData);
       tx.set(db.collection('duo_face_shops').doc(shopId), shopData);
+      if (customerShop) tx.set(db.collection('shops').doc(customerShop.id), customerShop.data);
     });
   }
 }
@@ -134,7 +141,15 @@ export class MerchantProvisioningService {
     // unverified id.
     let customerAppShopId: string | undefined;
     let pickupLocation: PickupLocation | undefined = parsed.pickupLocation;
-    if (parsed.customerAppShopId) {
+    if (parsed.listForCustomers && parsed.customerAppShopId) {
+      throw new Error('Cannot provision: a shop is either listed as new or linked to an existing customer shop, not both');
+    }
+    if (parsed.listForCustomers) {
+      if (await this.customerAppShopProvider.getShop(parsed.shopId)) {
+        throw new Error(`Cannot provision: a customer-visible shop already exists at ${parsed.shopId}`);
+      }
+      customerAppShopId = parsed.shopId;
+    } else if (parsed.customerAppShopId) {
       const rawShop = await this.customerAppShopProvider.getShop(parsed.customerAppShopId);
       if (!rawShop) {
         throw new Error(`Cannot provision: no Customer App shop exists at customerAppShopId ${parsed.customerAppShopId}`);
@@ -175,6 +190,7 @@ export class MerchantProvisioningService {
       identityData,
       shopId: parsed.shopId,
       shopData,
+      ...(parsed.listForCustomers ? { customerShop: { id: parsed.shopId, data: newListingData(parsed.name, now) } } : {}),
     });
 
     return {

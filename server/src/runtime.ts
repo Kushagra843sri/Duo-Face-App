@@ -1,3 +1,4 @@
+import { FirestoreInboxStore } from './integrations/firebase/FirestoreInboxStore';
 import { FirestoreDeliveryCodeStore } from './integrations/firebase/FirestoreDeliveryCodeStore';
 import { CustomerOrderSyncService } from './services/customerOrderSyncService';
 import { appEvents, AppEventService } from './services/appEvents';
@@ -9,6 +10,7 @@ import { DriverDispatchService } from './services/driverDispatchService';
 import { DriverNearbyService, nearbyHub } from './services/driverNearby';
 import { dispatchTriggerHub } from './services/dispatchTrigger';
 import { NotificationService } from './services/notificationService';
+import { ShopListingService, shopListingHub } from './services/shopListingService';
 import { OrderStatusService } from './services/orderStatusService';
 
 /**
@@ -28,11 +30,18 @@ export function installRuntime(): { orderSync: CustomerOrderSyncService } {
     undefined,
     async (orderId, shopId) => (await lookups.getCurrentForOrder(orderId, shopId))?.status === 'delivered'
   );
-  deliveryLifecycleEffectsHub.install(new DeliveryLifecycleEffectsService(orderSync, new NotificationService(), new OrderStatusService()));
+  deliveryLifecycleEffectsHub.install(new DeliveryLifecycleEffectsService(
+      orderSync,
+      new NotificationService(undefined, undefined, undefined, undefined, undefined, new FirestoreInboxStore()),
+      new OrderStatusService()
+    ));
 
   // Notifications to everyone involved (inbox + push).
   appEvents.install(new AppEventService());
   nearbyHub.install(new DriverNearbyService());
+
+  // Keep the customer-facing shop name/address in step with the owner's profile.
+  shopListingHub.install(new ShopListingService());
 
   // Nearest-driver re-offer after a rejection / expired offer (docs/decisions/026).
   dispatchTriggerHub.install(new DriverDispatchService());

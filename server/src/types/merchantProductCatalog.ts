@@ -9,8 +9,12 @@ import type { InventoryStatus } from './inventoryItem';
 export interface MerchantProductCatalogEntry {
   productId: string;
   name: string;
+  /** Shown to customers under the name; null when the owner wrote none. */
+  description: string | null;
   price: number;
   inStock: boolean;
+  /** false = the owner has hidden it from customers. */
+  isActive: boolean;
   inventory: {
     quantity: number;
     reservedQuantity: number;

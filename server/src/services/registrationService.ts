@@ -49,6 +49,7 @@ export class RegistrationService {
         firebaseUid,
         shopId: randomUUID(),
         name: body.shopName,
+        listForCustomers: true,
       });
     }
     return { role: body.intent };

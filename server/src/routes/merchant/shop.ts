@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 
 import { FirebaseAuthService } from '../../integrations/firebase/FirebaseAuthService';
 import type { FirebaseIdentityVerifier } from '../../integrations/firebase/FirebaseAuthService';
@@ -9,54 +10,42 @@ import { requireActiveMerchantShop } from '../../middleware/requireActiveMerchan
 import { resolveRole } from '../../middleware/resolveRole';
 import { validateBody } from '../../middleware/validateBody';
 import { DuoFaceShopService } from '../../services/duoFaceShopService';
-import { MerchantProductCatalogService } from '../../services/merchantProductCatalogService';
-import { MerchantProductService } from '../../services/merchantProductService';
 import { DuoFaceRoleResolver } from '../../services/roleResolver';
 import type { RoleResolver } from '../../services/roleResolver';
+import { ShopListingService } from '../../services/shopListingService';
 import type { AuthenticatedRequest } from '../../types/auth';
-import { createProductBodySchema, updateProductBodySchema } from '../../types/merchantProduct';
-import type { CreateProductBody, UpdateProductBody } from '../../types/merchantProduct';
 
-export function createMerchantProductsRouter(
+const openBodySchema = z.object({ isOpen: z.boolean() }).strict();
+
+/**
+ * The owner's view of how their shop appears to customers. The shop is always
+ * the authenticated merchant's own (req.shop); no id is read from the request.
+ */
+export function createMerchantShopRouter(
   verifier: FirebaseIdentityVerifier = new FirebaseAuthService(),
   roleResolver: RoleResolver = new DuoFaceRoleResolver(),
   shopService: DuoFaceShopService = new DuoFaceShopService(),
-  catalogService: MerchantProductCatalogService = new MerchantProductCatalogService(),
-  productService: MerchantProductService = new MerchantProductService()
+  listing: ShopListingService = new ShopListingService()
 ) {
   const router = Router();
-
-  // shopId comes exclusively from req.shop (verified + active, set by
-  // requireActiveMerchantShop) — never from the request.
-  router.get(
-    '/',
-    authenticateFirebase(verifier),
-    resolveRole(roleResolver),
-    requireRole('merchant'),
-    requireActiveMerchantShop(shopService),
-    asyncHandler(async (req: AuthenticatedRequest, res) => {
-      const entries = await catalogService.listCatalog(req.shop!);
-      res.json(entries);
-    })
-  );
-
   const guard = [authenticateFirebase(verifier), resolveRole(roleResolver), requireRole('merchant'), requireActiveMerchantShop(shopService)];
 
-  router.post(
+  router.get(
     '/',
     ...guard,
-    validateBody(createProductBodySchema),
     asyncHandler(async (req: AuthenticatedRequest, res) => {
-      res.status(201).json(await productService.create(req.shop!, req.body as CreateProductBody));
+      const view = await listing.get(req.shop!.customerAppShopId);
+      res.json({ shopId: req.shop!.shopId, name: req.shop!.name, ...view });
     })
   );
 
-  router.patch(
-    '/:productId',
+  router.put(
+    '/open',
     ...guard,
-    validateBody(updateProductBodySchema),
+    validateBody(openBodySchema),
     asyncHandler(async (req: AuthenticatedRequest, res) => {
-      res.json(await productService.update(req.shop!, req.params.productId, req.body as UpdateProductBody));
+      const view = await listing.setOpen(req.shop!.customerAppShopId, (req.body as z.infer<typeof openBodySchema>).isOpen);
+      res.json({ shopId: req.shop!.shopId, name: req.shop!.name, ...view });
     })
   );
 

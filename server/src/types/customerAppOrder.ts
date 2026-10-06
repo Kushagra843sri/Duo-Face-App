@@ -43,6 +43,9 @@ export const customerAppOrderSnapshotSchema = z.object({
     label: z.string(),
     fullAddress: z.string(),
     phoneNumber: z.string(),
+    // The GPS point the customer saved with the address (optional).
+    latitude: z.number().optional(),
+    longitude: z.number().optional(),
   }),
   pricing: z.object({
     total: z.number(),
@@ -60,7 +63,7 @@ export const customerAppOrderOwnershipSchema = z.object({
   orderId: z.string().min(1),
   shopId: z.string().min(1),
   customerId: z.string().min(1),
-  delivery: z.object({ fullAddress: z.string() }),
+  delivery: z.object({ fullAddress: z.string(), latitude: z.number().optional(), longitude: z.number().optional() }),
 });
 
 export type CustomerAppOrderOwnership = z.infer<typeof customerAppOrderOwnershipSchema>;

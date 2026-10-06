@@ -5,6 +5,7 @@ import type { CustomerAppShopProvider } from '../integrations/customerApp/Custom
 import { AppError } from '../middleware/errorHandler';
 import { InventoryService } from './inventoryService';
 import { customerAppProductSnapshotSchema } from '../types/customerAppProduct';
+import { stockKey } from '../types/duoFaceShop';
 import type { DuoFaceShop } from '../types/duoFaceShop';
 import type { MerchantProductCatalogEntry } from '../types/merchantProductCatalog';
 
@@ -48,7 +49,7 @@ export class MerchantProductCatalogService {
 
     const [rawProducts, inventoryItems] = await Promise.all([
       this.productProvider.listProductsByShopId(shop.customerAppShopId),
-      this.inventoryService.listInventory(shop.shopId),
+      this.inventoryService.listInventory(stockKey(shop)),
     ]);
 
     const inventoryByProductId = new Map(inventoryItems.map((item) => [item.productId, item]));
@@ -73,8 +74,10 @@ export class MerchantProductCatalogService {
       entries.push({
         productId: product.id,
         name: product.name,
+        description: product.description ? product.description : null,
         price: product.price,
         inStock: product.inStock,
+        isActive: product.isActive !== false,
         inventory: inventory
           ? { quantity: inventory.quantity, reservedQuantity: inventory.reservedQuantity, status: inventory.status }
           : null,

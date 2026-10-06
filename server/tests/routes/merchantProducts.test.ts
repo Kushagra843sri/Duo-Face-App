@@ -213,7 +213,7 @@ describe('GET /merchant/products — catalog + ownership', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual([
-      { productId: 'product-1', name: 'Amul Milk', price: 28, inStock: true, inventory: null },
+      { productId: 'product-1', name: 'Amul Milk', description: null, price: 28, inStock: true, isActive: true, inventory: null },
     ]);
   });
 
@@ -263,7 +263,7 @@ describe('GET /merchant/products — catalog + ownership', () => {
     for (const response of [viaQuery, viaBody]) {
       expect(response.status).toBe(200);
       expect(response.body).toEqual([
-        { productId: 'product-1', name: 'Amul Milk', price: 28, inStock: true, inventory: null },
+        { productId: 'product-1', name: 'Amul Milk', description: null, price: 28, inStock: true, isActive: true, inventory: null },
       ]);
     }
   });
@@ -279,9 +279,9 @@ describe('GET /merchant/products — catalog + ownership', () => {
     const responseA = await request(buildApp(merchantA)).get('/merchant/products').set('Authorization', 'Bearer token');
     const responseB = await request(buildApp(merchantB)).get('/merchant/products').set('Authorization', 'Bearer token');
 
-    expect(responseA.body).toEqual([{ productId: 'product-a', name: 'A Product', price: 10, inStock: true, inventory: null }]);
-    expect(responseB.body).toEqual([{ productId: 'product-b', name: 'B Product', price: 20, inStock: false, inventory: null }]);
-    // No leakage of categoryId/description/imageUrl/isActive/createdAt or shopId itself.
-    expect(Object.keys(responseA.body[0])).toEqual(['productId', 'name', 'price', 'inStock', 'inventory']);
+    expect(responseA.body).toEqual([{ productId: 'product-a', name: 'A Product', description: null, price: 10, inStock: true, isActive: true, inventory: null }]);
+    expect(responseB.body).toEqual([{ productId: 'product-b', name: 'B Product', description: null, price: 20, inStock: false, isActive: true, inventory: null }]);
+    // The owner sees their own product's description and visibility, but no raw fields: no categoryId/imageUrl/createdAt or shopId itself.
+    expect(Object.keys(responseA.body[0])).toEqual(['productId', 'name', 'description', 'price', 'inStock', 'isActive', 'inventory']);
   });
 });

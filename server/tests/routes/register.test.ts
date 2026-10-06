@@ -107,7 +107,8 @@ describe('POST /auth/register', () => {
     expect(res.status).toBe(201);
     const shop = [...shopKv.data.values()][0];
     expect(shop).toMatchObject({ name: 'Asha Mart', merchantFirebaseUid: 'new-uid', status: 'active' });
-    expect(shop.customerAppShopId).toBeUndefined();
+    // The customer-visible shop shares the shop's id, so stock and orders line up (decision 031).
+    expect(shop.customerAppShopId).toBe(shop.shopId);
     const me = await request(app).get('/auth/me').set(auth);
     expect(me.body).toMatchObject({ role: 'merchant', shopId: shop.shopId });
   });

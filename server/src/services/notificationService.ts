@@ -1,3 +1,4 @@
+import type { InboxStore } from '../integrations/firebase/FirestoreInboxStore';
 import { FirestoreCustomerAppOrderProvider } from '../integrations/customerApp/FirestoreCustomerAppOrderProvider';
 import type { CustomerAppOrderProvider } from '../integrations/customerApp/CustomerAppOrderProvider';
 import { FirestoreNotificationDeviceStore, FirestoreNotificationEventStore } from '../integrations/firebase/FirestoreNotificationStores';
@@ -5,6 +6,7 @@ import type { NotificationDeviceStore, NotificationEventStore } from '../integra
 import { createPushNotificationProvider } from '../integrations/notifications/createPushNotificationProvider';
 import type { PushMessage, PushNotificationProvider } from '../integrations/notifications/PushNotificationProvider';
 import { notificationDeviceSchema, notificationEventSchema } from '../types/notifications';
+import { NOTIFICATION_COPY } from './notifier';
 import type { NotificationType } from '../types/notifications';
 
 export type NotifyResult =
@@ -59,16 +61,22 @@ export class NotificationService {
     private readonly devices: NotificationDeviceStore = new FirestoreNotificationDeviceStore(),
     private readonly events: NotificationEventStore = new FirestoreNotificationEventStore(),
     private readonly provider: PushNotificationProvider = createPushNotificationProvider(),
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    /** When set, each notification is also kept in the customer's in-app inbox (push does not exist on web, Expo Go or iOS). */
+    private readonly inbox: InboxStore | null = null
   ) {}
 
   async notify(type: NotificationType, assignment: AssignmentRef): Promise<NotifyResult> {
     const { orderId } = assignment;
     try {
-      if (!this.provider.enabled) return 'disabled';
+      if (!this.provider.enabled && !this.inbox) return 'disabled';
 
       const customerUid = await this.resolveRecipient(assignment);
       if (!customerUid) return 'skipped_inconsistent';
+
+      // The inbox is the source of truth and is written whether or not push is on. Same once-only key as Notifier.
+      if (this.inbox) await this.recordInInbox(customerUid, type, orderId);
+      if (!this.provider.enabled) return 'disabled';
 
       const eventId = `${type}:${orderId}`;
       if (!(await this.claim(eventId, type, orderId))) return 'duplicate';
@@ -115,6 +123,15 @@ export class NotificationService {
     } catch {
       console.warn(`NotificationService: ${type} for order ${orderId} not sent (internal error)`);
       return 'failed';
+    }
+  }
+
+  private async recordInInbox(uid: string, type: NotificationType, orderId: string): Promise<void> {
+    try {
+      const copy = NOTIFICATION_COPY[type];
+      await this.inbox!.create(uid, `${type}:${orderId}`, { type, title: copy.title, body: copy.body, orderId, createdAt: this.now(), readAt: null });
+    } catch {
+      console.warn(`NotificationService: could not record ${type} for order ${orderId} in the inbox`);
     }
   }
 

@@ -14,6 +14,7 @@ import { InventoryService } from '../../services/inventoryService';
 import { DuoFaceRoleResolver } from '../../services/roleResolver';
 import type { RoleResolver } from '../../services/roleResolver';
 import type { AuthenticatedRequest } from '../../types/auth';
+import { stockKey } from '../../types/duoFaceShop';
 
 const createInventorySchema = z.object({
   productId: z.string().min(1),
@@ -50,7 +51,7 @@ export function createMerchantInventoryRouter(
     '/',
     ...guard,
     asyncHandler(async (req: AuthenticatedRequest, res) => {
-      const items = await inventoryService.listInventory(req.shop!.shopId);
+      const items = await inventoryService.listInventory(stockKey(req.shop!));
       res.json(items);
     })
   );
@@ -59,7 +60,7 @@ export function createMerchantInventoryRouter(
     '/:productId',
     ...guard,
     asyncHandler(async (req: AuthenticatedRequest, res) => {
-      const item = await inventoryService.getInventory(req.shop!.shopId, req.params.productId);
+      const item = await inventoryService.getInventory(stockKey(req.shop!), req.params.productId);
       if (!item) {
         res.status(404).json({ error: 'not_found', message: 'Inventory not found for this product.' });
         return;
@@ -74,7 +75,7 @@ export function createMerchantInventoryRouter(
     validateBody(createInventorySchema),
     asyncHandler(async (req: AuthenticatedRequest, res) => {
       const { productId, quantity } = req.body as z.infer<typeof createInventorySchema>;
-      const item = await inventoryService.createInventory(req.shop!.shopId, productId, quantity);
+      const item = await inventoryService.createInventory(stockKey(req.shop!), productId, quantity);
       res.status(201).json(item);
     })
   );
@@ -85,7 +86,7 @@ export function createMerchantInventoryRouter(
     validateBody(setQuantitySchema),
     asyncHandler(async (req: AuthenticatedRequest, res) => {
       const { quantity } = req.body as z.infer<typeof setQuantitySchema>;
-      const item = await inventoryService.setQuantity(req.shop!.shopId, req.params.productId, quantity);
+      const item = await inventoryService.setQuantity(stockKey(req.shop!), req.params.productId, quantity);
       res.json(item);
     })
   );
@@ -96,7 +97,7 @@ export function createMerchantInventoryRouter(
     validateBody(adjustQuantitySchema),
     asyncHandler(async (req: AuthenticatedRequest, res) => {
       const { delta } = req.body as z.infer<typeof adjustQuantitySchema>;
-      const item = await inventoryService.adjustQuantity(req.shop!.shopId, req.params.productId, delta);
+      const item = await inventoryService.adjustQuantity(stockKey(req.shop!), req.params.productId, delta);
       res.json(item);
     })
   );
@@ -105,7 +106,7 @@ export function createMerchantInventoryRouter(
     '/:productId/disable',
     ...guard,
     asyncHandler(async (req: AuthenticatedRequest, res) => {
-      const item = await inventoryService.disableInventory(req.shop!.shopId, req.params.productId);
+      const item = await inventoryService.disableInventory(stockKey(req.shop!), req.params.productId);
       res.json(item);
     })
   );

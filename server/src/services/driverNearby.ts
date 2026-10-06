@@ -4,6 +4,7 @@ import { createDeliveryGeocoder } from '../integrations/geocoding/createDelivery
 import type { DeliveryGeocoder } from '../integrations/geocoding/DeliveryGeocoder';
 import { appEvents } from './appEvents';
 import type { AppEvents } from './appEvents';
+import { savedDeliveryPoint } from './deliveryPoint';
 import { haversineMeters } from './geo';
 import type { GeoPoint } from './geo';
 
@@ -82,9 +83,8 @@ export class DriverNearbyService implements NearbyWatcher {
     const order = await this.orders.getOrder(orderId);
     const delivery = order?.delivery as { latitude?: unknown; longitude?: unknown; fullAddress?: unknown } | undefined;
     if (!delivery) return null;
-    if (typeof delivery.latitude === 'number' && typeof delivery.longitude === 'number') {
-      return { latitude: delivery.latitude, longitude: delivery.longitude };
-    }
+    const saved = savedDeliveryPoint(delivery);
+    if (saved) return saved;
     if (typeof delivery.fullAddress !== 'string') return null;
     const geocoded = await this.geocoder.geocode(delivery.fullAddress);
     return geocoded && Number.isFinite(geocoded.latitude) && Number.isFinite(geocoded.longitude) ? geocoded : null;

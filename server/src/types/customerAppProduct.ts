@@ -14,6 +14,8 @@ export const customerAppProductSnapshotSchema = z.object({
   name: z.string().min(1),
   price: z.number(),
   inStock: z.boolean(),
+  description: z.string().nullish(),
+  isActive: z.boolean().optional(),
 });
 
 export type CustomerAppProductSnapshot = z.infer<typeof customerAppProductSnapshotSchema>;
