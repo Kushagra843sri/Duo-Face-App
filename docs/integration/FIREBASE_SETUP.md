@@ -38,7 +38,7 @@ Project settings → Your apps → add an **Android app** with package `com.duof
 `PROFILE_ENCRYPTION_KEY` (32 random bytes, base64: the command is in `server/.env.example`) is required for profiles and for showing the delivery code in the Customer App. Redis (`REDIS_URL`, e.g. Upstash free tier) for live driver location. Exotel, OpenCage, Cloudflare R2: only for calls/SMS, geocoding, and KYC photos.
 
 ## 8. First data
-There is no admin tool yet. A shop must exist in `shops` (fields `name`, `address`, `isOpen: true`, `isActive: true`), be linked to a merchant through the server's merchant provisioning, and the merchant must set a quantity for each product in the app's inventory screen before customers can buy it.
+Nothing needs to be created by hand. A shop owner registers in the Merchant/Driver app (which creates the shop and lists it for customers, **closed**), fills in the profile, adds products with their starting stock, and taps **Open** on the dashboard. Customers then see the shop in the Customer App. Drivers register the same way and go on duty. Keep one admin account (section 9) for refunds and KYC review.
 
 ## 9. Admins (refunds)
 Admins are not stored anywhere: they are an allowlist on the server. In Firebase console -> Authentication -> Users, copy the **User UID** of each person who should be an admin, and set `ADMIN_FIREBASE_UIDS=uid1,uid2` in `server/.env` (restart the server). They sign in with the normal app (Merchant/Driver app, same sign-in screen) and are taken to the admin area automatically. Use accounts that are not also a shop owner or driver: an admin UID is only ever an admin. To remove an admin, delete the UID from the list and restart.

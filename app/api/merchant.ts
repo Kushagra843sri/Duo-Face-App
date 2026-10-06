@@ -13,8 +13,12 @@ export interface MerchantMe {
 export interface MerchantProductCatalogEntry {
   productId: string;
   name: string;
+  description: string | null;
+  /** Rupees, as the catalog has always stored it. */
   price: number;
   inStock: boolean;
+  /** false = hidden from customers. */
+  isActive: boolean;
   inventory: { quantity: number; reservedQuantity: number; status: 'active' | 'disabled' } | null;
 }
 
@@ -146,3 +150,39 @@ export function requestMerchantDriver(orderId: string) {
     body: JSON.stringify({ orderId }),
   });
 }
+
+// ---- shop listing, products and order status (decision 031) ----
+
+/** Mirrors GET /merchant/shop: how the shop appears to customers. */
+export interface MerchantShop {
+  shopId: string;
+  name: string;
+  /** False until the shop has a customer-visible record. */
+  listed: boolean;
+  isOpen: boolean;
+}
+
+export const getMerchantShop = () => apiRequest<MerchantShop>('/merchant/shop');
+
+export const setMerchantShopOpen = (isOpen: boolean) =>
+  apiRequest<MerchantShop>('/merchant/shop/open', { method: 'PUT', body: JSON.stringify({ isOpen }) });
+
+export interface ProductInput {
+  name: string;
+  description?: string;
+  /** Integer paise: money is never a float on the wire. */
+  pricePaise: number;
+}
+
+export const createMerchantProduct = (input: ProductInput & { quantity: number }) =>
+  apiRequest<MerchantProductCatalogEntry>('/merchant/products', { method: 'POST', body: JSON.stringify(input) });
+
+export const updateMerchantProduct = (productId: string, patch: Partial<ProductInput> & { isAvailable?: boolean }) =>
+  apiRequest<MerchantProductCatalogEntry>(`/merchant/products/${encodeURIComponent(productId)}`, { method: 'PATCH', body: JSON.stringify(patch) });
+
+/** What a shop may set on an order it owns; the server decides which moves are allowed and answers 409 otherwise. */
+export type MerchantOrderAction = 'confirmed' | 'rejected' | 'preparing' | 'ready_for_pickup';
+
+export const updateMerchantOrderStatus = (orderId: string, status: MerchantOrderAction) =>
+  apiRequest<{ orderId: string; status: string }>(`/merchant/orders/${encodeURIComponent(orderId)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+

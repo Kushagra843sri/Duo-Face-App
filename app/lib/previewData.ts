@@ -140,11 +140,17 @@ function deliveryOrderDto(a: AssignmentState, forDriver: boolean): DeliveryOrder
   };
 }
 
+/** Sample order statuses and shop state, changed by the shop's buttons. Same allowed moves as the server. */
+const orderStatus = new Map<string, string>();
+const NEXT: Record<string, string[]> = { pending: ['confirmed', 'rejected'], confirmed: ['preparing'], preparing: ['ready_for_pickup'] };
+const shopState = { isOpen: false };
+const hiddenProducts = new Set<string>();
+
 function orderSummary(o: OrderSeed) {
   const current = assignments.filter((a) => a.orderId === o.orderId).at(-1);
   return {
     orderId: o.orderId,
-    status: 'pending',
+    status: orderStatus.get(o.orderId) ?? 'pending',
     itemCount: o.items.length,
     total: totalOf(o),
     createdAt: ago(o.createdMinutesAgo),
@@ -166,6 +172,8 @@ function catalog(): MerchantProductCatalogEntry[] {
     const inv = inventory.get(p.productId);
     return {
       ...p,
+      description: null,
+      isActive: !hiddenProducts.has(p.productId),
       inStock: inv ? inv.status === 'active' && inv.quantity > 0 : true,
       inventory: inv ? { quantity: inv.quantity, reservedQuantity: inv.reservedQuantity, status: inv.status } : null,
     };
@@ -207,6 +215,30 @@ function route(role: PreviewRole, method: string, path: string, body: Record<str
 
   if (role === 'merchant') {
     if (is('merchant', 'me')) return { firebaseUid: 'preview-user', role: 'merchant', shopId: SHOP_ID, shopName: 'Fresh Mart (preview)' } satisfies MerchantMe;
+    if (is('merchant', 'shop')) return { shopId: SHOP_ID, name: 'Fresh Mart (preview)', listed: true, isOpen: shopState.isOpen };
+    if (is('merchant', 'shop', 'open')) {
+      shopState.isOpen = body.isOpen === true;
+      return { shopId: SHOP_ID, name: 'Fresh Mart (preview)', listed: true, isOpen: shopState.isOpen };
+    }
+    if (is('merchant', 'products') && method === 'POST') {
+      const productId = `p-new-${products.length + 1}`;
+      const pricePaise = Number(body.pricePaise);
+      if (!Number.isInteger(pricePaise) || pricePaise < 100) throw new ApiError(400, 'The minimum price is Rs 1.');
+      products.push({ productId, name: String(body.name), price: pricePaise / 100 });
+      inventory.set(productId, { inventoryId: `inv-${productId}`, shopId: SHOP_ID, productId, quantity: Number(body.quantity ?? 0), reservedQuantity: 0, status: 'active' });
+      return catalog().find((p) => p.productId === productId);
+    }
+    if (is('merchant', 'products', '*') && method === 'PATCH') {
+      const product = products.find((p) => p.productId === seg[2]);
+      if (!product) throw notFound('Product not found.');
+      if (typeof body.name === 'string') product.name = body.name;
+      if (typeof body.pricePaise === 'number') product.price = body.pricePaise / 100;
+      if (typeof body.isAvailable === 'boolean') {
+        if (body.isAvailable) hiddenProducts.delete(product.productId);
+        else hiddenProducts.add(product.productId);
+      }
+      return catalog().find((p) => p.productId === product.productId);
+    }
     if (is('merchant', 'products')) return catalog();
     if (is('merchant', 'inventory') && method === 'GET') return [...inventory.values()];
     if (is('merchant', 'inventory') && method === 'POST') {
@@ -226,6 +258,14 @@ function route(role: PreviewRole, method: string, path: string, body: Record<str
       return item;
     }
     if (is('merchant', 'inventory', '*', 'disable')) return Object.assign(ensureItem(seg[2]), { status: 'disabled' as const });
+    if (is('merchant', 'orders', '*', 'status') && method === 'PATCH') {
+      const id = seg[2];
+      if (!orderOf(id)) throw notFound('Order not found.');
+      const from = orderStatus.get(id) ?? 'pending';
+      if (!(NEXT[from] ?? []).includes(String(body.status))) throw conflict(`Order cannot move from ${from} to ${String(body.status)}`);
+      orderStatus.set(id, String(body.status));
+      return { orderId: id, status: String(body.status) };
+    }
     if (is('merchant', 'orders')) return orders.map(orderSummary);
     if (is('merchant', 'orders', '*')) {
       const o = orderOf(seg[2]);

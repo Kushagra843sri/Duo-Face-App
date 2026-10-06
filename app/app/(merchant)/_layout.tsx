@@ -24,6 +24,10 @@ function MerchantTabs() {
         options={{ title: 'Products', tabBarIcon: ({ color, size }) => <Package color={color} size={size} /> }}
       />
       <Tabs.Screen
+        name="product-form"
+        options={{ title: 'Product', href: null, headerLeft: () => <HeaderBack fallback="/(merchant)/products" /> }}
+      />
+      <Tabs.Screen
         name="inventory"
         options={{ title: 'Inventory', tabBarIcon: ({ color, size }) => <Boxes color={color} size={size} /> }}
       />

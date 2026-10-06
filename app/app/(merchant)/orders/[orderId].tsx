@@ -6,6 +6,7 @@ import { getMerchantOrder } from '@/api/merchant';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
 import { OrderDeliveryAction } from '@/components/OrderDeliveryAction';
+import { OrderStatusActions } from '@/components/OrderStatusActions';
 import { Card, Divider, InfoRow, Screen, SectionCard, StatusBadge } from '@/components/ui';
 import { useApiResource } from '@/hooks/useApiResource';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
@@ -23,9 +24,6 @@ export default function MerchantOrderDetailScreen() {
     return <ErrorState error={error} retry={retry} />;
   }
 
-  // No Accept/Reject/Prepare/Ready/Dispatch/Deliver buttons — there is no
-  // valid Customer App merchant transition mechanism (docs/decisions/011).
-
   return (
     <Screen>
       <Card className="gap-2">
@@ -37,6 +35,8 @@ export default function MerchantOrderDetailScreen() {
         </View>
         <Text className="text-sm text-muted dark:text-muted-dark">Placed {new Date(data.createdAt).toLocaleString()}</Text>
       </Card>
+
+      <OrderStatusActions orderId={data.orderId} status={data.status} onChanged={retry} />
 
       <SectionCard title="Items" icon={Package}>
         {data.items.map((item) => (

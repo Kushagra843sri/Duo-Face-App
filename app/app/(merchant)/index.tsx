@@ -5,6 +5,7 @@ import { Text, View } from 'react-native';
 import { getMerchantInventory, getMerchantMe, getMerchantOrders, getMerchantProducts } from '@/api/merchant';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
+import { ShopOpenCard } from '@/components/ShopOpenCard';
 import { HeroHeader, IconChip, PressableCard, Screen, StatCard } from '@/components/ui';
 import { useApiResource } from '@/hooks/useApiResource';
 
@@ -76,6 +77,8 @@ export default function MerchantDashboard() {
   return (
     <Screen>
       <HeroHeader eyebrow="Your shop" title={data.shopName} subtitle="Welcome back" actionLabel="View & edit profile" onPress={() => router.push('/(merchant)/profile' as never)} />
+
+      <ShopOpenCard productCount={data.productCount} />
 
       <View className="flex-row gap-3">
         <StatCard label="Products" value={data.productCount} icon={Package} onPress={() => router.navigate('/(merchant)/products')} />

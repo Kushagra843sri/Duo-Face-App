@@ -160,3 +160,20 @@ Owner choices: **inbox + push**; KYC approval **changes status and notifies only
 ### Verified / not verified
 Server: 953 tests pass, including every hook point (fires once, not on failure, not on repeats), recipients per event, inbox isolation per user over HTTP, and all the review safety cases. Apps: typecheck and lint clean; browser click-throughs in preview mode (customer: online order -> bell and inbox fill as it progresses -> tap opens the order -> mark all read; admin: bell/inbox -> KYC queue -> masked detail with photos -> approve KYC -> reject bank needs a reason -> queue updates). **Not verified:** real push delivery (no Firebase project / device), the "nearby" check against real GPS and geocoding, merchant/driver bells and the applicant rejection note on screen (type-checked only), Firestore inbox queries and indexes (in-memory fakes only).
 
+## C7 (2026-10-06): wiring audit between the customer, shop and driver apps
+
+The real server (all routes, services and stores, unchanged) is run end to end against an in-memory Firestore (`server/tests/e2e/`), driven over HTTP with each person's own token, plus a contract test that every endpoint the apps call exists. This found real gaps that no unit test could, now fixed:
+
+1. **A newly registered shop was invisible to customers.** Registration now creates the customer-visible `shops/{id}` record in the same transaction, under the **same id** as the Duo-Face shop and linked to it, **closed** until the owner opens it. (Supersedes the old "do not assume the ids are equal" caution for registered shops; linking an existing external shop is still supported.)
+2. **Stock the shop set was never what customers saw** (stock was keyed by the internal shop id, the catalog and orders by the customer-facing id). Stock is now keyed by one function, `stockKey(shop)` = customer-facing id everywhere.
+3. **Shops could not create products.** `POST /merchant/products` (name, description, price in paise, starting stock; product + stock written in one transaction) and `PATCH /merchant/products/:id` (name, description, price, hide/show). Another shop's product is a 404. Photos are not included (they need R2).
+4. **The shop app had no order buttons.** Accept / reject / start preparing / mark ready on the order screen (the server owns the allowed moves; reject asks for confirmation).
+5. **No open/closed switch.** `GET /merchant/shop`, `PUT /merchant/shop/open`; a closed shop is visible but cannot be ordered from. The shop's name and address are kept in step with its profile.
+6. **The customer's saved GPS point was ignored** (map destination, driver navigation and "nearby" needed a paid geocoder). It is now used first everywhere; geocoding is only a fallback.
+7. **The customer's four delivery notifications were push-only.** They now also reach the in-app inbox (same once-only key as the new notifier).
+8. **Catalog lookups dropped the document id**, so products without an embedded `id` field were silently invisible to the shop. Fixed at the source.
+
+Also: production wiring (hubs, effects, dispatch, codes, notifications) moved into `server/src/runtime.ts`, called by `server.ts` and by the end-to-end tests, so tests exercise the real wiring.
+
+**Covered by end-to-end tests (real server, in-memory database):** onboarding from registration; the full order (place, shop works it, driver offered / accepts / picks up, delivery code, tracking incl. destination, nearby alert, delivered with the code, every inbox); cancel, reject, the last-unit race between two customers, closed shop, hidden product, price change; privacy between customers, shops, drivers and admins; KYC review from submission to the owner's notification. **Not covered:** online payment and refunds across the apps (need a Cashfree account), real Firestore behaviour (indexes, transaction contention, security rules), real push, GPS, and the apps' screens beyond the browser previews.
+
