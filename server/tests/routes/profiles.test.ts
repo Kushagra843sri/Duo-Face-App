@@ -20,6 +20,7 @@ import { FieldCrypto } from '../../src/services/fieldCrypto';
 import { MerchantProfileService } from '../../src/services/merchantProfileService';
 import { DuoFaceRoleResolver } from '../../src/services/roleResolver';
 import { verhoeffCheckDigit } from '../../src/validators/indianIds';
+import { RecordingEvents } from '../helpers/recordingEvents';
 
 const T = new Date('2026-06-01T10:00:00Z');
 const auth = { Authorization: 'Bearer token' };
@@ -85,15 +86,16 @@ function build(opts: { role?: 'driver' | 'merchant'; crypto?: boolean; storageEn
 
   const driverProfiles = memoryProfileStore();
   const merchantProfiles = memoryProfileStore();
-  const driverService_ = new DriverProfileService(driverProfiles, driverService, crypto, bucket.storage, commission, () => T);
-  const merchantService_ = new MerchantProfileService(merchantProfiles, shopService, crypto, bucket.storage, commission, () => T);
+  const events = new RecordingEvents();
+  const driverService_ = new DriverProfileService(driverProfiles, driverService, crypto, bucket.storage, commission, () => T, events);
+  const merchantService_ = new MerchantProfileService(merchantProfiles, shopService, crypto, bucket.storage, commission, () => T, events);
 
   const app = express();
   app.use(express.json());
   app.use('/driver/profile', createDriverProfileRouter(verifier, resolver, driverService, driverService_));
   app.use('/merchant/profile', createMerchantProfileRouter(verifier, resolver, shopService, merchantService_));
   app.use(errorHandler);
-  return { app, driverProfiles, merchantProfiles, driverDocs, shopDocs, driverService_, merchantService_, ...bucket };
+  return { app, driverProfiles, merchantProfiles, driverDocs, shopDocs, driverService_, merchantService_, events, ...bucket };
 }
 
 const personal = {
@@ -410,5 +412,44 @@ describe('profile access control', () => {
     expect((await request(t.app).get('/driver/profile/driver-2').set(auth)).status).toBe(404);
     expect((await request(t.app).get('/driver/profile?driverId=driver-2').set(auth)).body.personal.fullName).toBe('Ravi Kumar');
     expect(t.driverProfiles.data.has('driver-2')).toBe(false);
+  });
+});
+
+describe('admins are told when something enters review', () => {
+  it('a driver: bank details complete -> one alert; photos complete the KYC -> a second; edits while waiting -> none', async () => {
+    const t = build();
+    await patchDriver(t.app, { personal, identity, vehicle, bank });
+    expect(t.events.calls).toHaveLength(1); // bank newly pending
+    expect(t.events.calls[0]).toMatch(/^kycSubmitted:driver:driver-1:\d+$/);
+
+    await patchDriver(t.app, { personal: { ...personal, fullName: 'Ravi K Sharma' } }); // already waiting / still incomplete
+    expect(t.events.calls).toHaveLength(1);
+
+    const selfie = await uploadPhoto(t, '/driver/profile', 'selfie');
+    await request(t.app).post('/driver/profile/photo-confirm').set(auth).send({ kind: 'selfie', objectKey: selfie });
+    expect(t.events.calls).toHaveLength(1); // KYC still incomplete (vehicle photo missing)
+    const vehiclePhoto = await uploadPhoto(t, '/driver/profile', 'vehicle');
+    await request(t.app).post('/driver/profile/photo-confirm').set(auth).send({ kind: 'vehicle', objectKey: vehiclePhoto });
+    expect(t.events.calls).toHaveLength(2); // KYC newly pending
+  });
+
+  it('a verified section that is edited goes back to review and the admins are told again', async () => {
+    const t = build();
+    await patchDriver(t.app, { personal, identity, vehicle, bank });
+    t.events.calls = [];
+    await t.driverService_.setVerification('driver-1', { bankStatus: 'verified' });
+    await patchDriver(t.app, { bank: { ...bank, bankName: 'Another Bank' } });
+    expect(t.events.calls).toHaveLength(1);
+    expect(t.events.calls[0]).toMatch(/^kycSubmitted:driver:driver-1:/);
+  });
+
+  it('a shop: a complete profile -> one alert; an edit while waiting -> none', async () => {
+    const t = build({ role: 'merchant' });
+    const shopPersonal = { shopName: 'Fresh Mart', ownerName: 'Anil Sharma', contactPhone: '+919822200001', email: 'anil@example.com', address: { line1: '5 Market Road', city: 'Delhi', pincode: '110016' } };
+    await patchMerchant(t.app, { personal: shopPersonal, identity: { panNumber: PAN } });
+    expect(t.events.calls.filter((c) => c.startsWith('kycSubmitted:merchant:'))).toHaveLength(1);
+    t.events.calls = [];
+    await patchMerchant(t.app, { personal: { ...shopPersonal, ownerName: 'Someone Else' } });
+    expect(t.events.calls).toEqual([]);
   });
 });

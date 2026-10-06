@@ -9,6 +9,8 @@ import type { CreateGatewayRefundInput, GatewayRefund, PaymentGateway } from '..
 import { errorHandler } from '../../src/middleware/errorHandler';
 import { createAdminRouter } from '../../src/routes/admin';
 import { DuoFaceIdentityService } from '../../src/services/duoFaceIdentityService';
+import { ProfileVerificationService } from '../../src/services/profileVerificationService';
+import type { ReviewableProfileStore } from '../../src/integrations/firebase/FirestoreProfileStore';
 import { RefundService } from '../../src/services/refundService';
 import { DuoFaceRoleResolver } from '../../src/services/roleResolver';
 import { FakeCustomerStore, NOW } from '../helpers/customerFixtures';
@@ -91,6 +93,9 @@ describe('who may use /admin', () => {
     ['get', '/admin/refunds/ord_1'],
     ['post', '/admin/refunds/ord_1'],
     ['post', '/admin/refunds/ord_1/refresh'],
+    ['get', '/admin/verifications'],
+    ['get', '/admin/verifications/driver/d-1'],
+    ['post', '/admin/verifications/driver/d-1/kyc'],
   ];
 
   it.each(urls)('%s %s: 401 without or with a bad token', async (method, url) => {
@@ -160,5 +165,70 @@ describe('admin allowlist config', () => {
     expect(await resolver.resolve('admin-1x')).toMatchObject({ role: 'merchant' });
     const nobody = new DuoFaceRoleResolver(new DuoFaceIdentityService(identityStore), new Set());
     expect(await nobody.resolve('admin-1')).toBeNull();
+  });
+});
+
+describe('KYC review endpoints (admin only, strict input)', () => {
+  const T = new Date('2026-10-06T10:00:00Z');
+  const profile = { driverId: 'd-1', personal: { fullName: 'Ravi' }, identity: { licenceExpiry: '2099-01-01' }, kycStatus: 'pending_review', bankStatus: 'incomplete', updatedAt: T };
+
+  function buildReview() {
+    const docs = new Map<string, Record<string, unknown>>([['d-1', structuredClone(profile)]]);
+    const store: ReviewableProfileStore = {
+      get: async (id) => (docs.has(id) ? structuredClone(docs.get(id)!) : null),
+      set: async (id, v) => void docs.set(id, v),
+      listPending: async () => [...docs.values()].map((d) => ({ ...structuredClone(d) })).filter((d) => d.kycStatus === 'pending_review'),
+      replaceIfUnchanged: async (id, expected, next) => {
+        const cur = docs.get(id);
+        if (!cur || new Date(cur.updatedAt as Date).getTime() !== expected) return false;
+        docs.set(id, next);
+        return true;
+      },
+    };
+    const empty: ReviewableProfileStore = { ...store, get: async () => null, listPending: async () => [] };
+    const service = new ProfileVerificationService(store, empty, { get: async () => ({ ok: true }) as never }, { get: async () => ({}) as never }, undefined, () => T);
+    const resolver = new DuoFaceRoleResolver(new DuoFaceIdentityService(identityStore), new Set(['admin-1']));
+    const app = express();
+    app.use(express.json());
+    app.use('/admin', createAdminRouter(verifier, resolver, new RefundService(null), service));
+    app.use(errorHandler);
+    return { app, docs };
+  }
+  const version = String(T.getTime());
+
+  it('lists, opens and decides as an admin', async () => {
+    const { app, docs } = buildReview();
+    const list = await request(app).get('/admin/verifications').set(as('tok-admin'));
+    expect(list.status).toBe(200);
+    expect(list.body.items).toMatchObject([{ kind: 'driver', ownerId: 'd-1', name: 'Ravi', pending: ['kyc'] }]);
+
+    const open = await request(app).get('/admin/verifications/driver/d-1').set(as('tok-admin'));
+    expect(open.body.verification).toMatchObject({ ownerId: 'd-1', version, licenceExpired: false });
+
+    const rejected = await request(app).post('/admin/verifications/driver/d-1/kyc').set(as('tok-admin')).send({ decision: 'reject', reason: 'Photo is blurry', version });
+    expect(rejected.status).toBe(200);
+    expect(docs.get('d-1')).toMatchObject({ kycStatus: 'rejected' });
+    expect((docs.get('d-1')!.kycReview as { by: string }).by).toBe('admin-1');
+  });
+
+  it('rejects malformed requests without changing anything', async () => {
+    const { app, docs } = buildReview();
+    const post = (path: string, body: object) => request(app).post(path).set(as('tok-admin')).send(body);
+    expect((await post('/admin/verifications/driver/d-1/kyc', { decision: 'maybe', version })).status).toBe(400);
+    expect((await post('/admin/verifications/driver/d-1/kyc', { decision: 'approve' })).status).toBe(400);
+    expect((await post('/admin/verifications/driver/d-1/kyc', { decision: 'approve', version: 'abc' })).status).toBe(400);
+    expect((await post('/admin/verifications/driver/d-1/kyc', { decision: 'approve', version, kycStatus: 'verified' })).status).toBe(400);
+    expect((await post('/admin/verifications/driver/d-1/kyc', { decision: 'reject', version })).status).toBe(400); // reason required
+    expect((await post('/admin/verifications/robot/d-1/kyc', { decision: 'approve', version })).status).toBe(404);
+    expect((await post('/admin/verifications/driver/d-1/payout', { decision: 'approve', version })).status).toBe(404);
+    expect((await request(app).get('/admin/verifications/robot/d-1').set(as('tok-admin'))).status).toBe(404);
+    expect(docs.get('d-1')!.kycStatus).toBe('pending_review');
+  });
+
+  it('a stale version is a 409', async () => {
+    const { app, docs } = buildReview();
+    const res = await request(app).post('/admin/verifications/driver/d-1/kyc').set(as('tok-admin')).send({ decision: 'approve', version: '1760000000000' });
+    expect(res.status).toBe(409);
+    expect(docs.get('d-1')!.kycStatus).toBe('pending_review');
   });
 });

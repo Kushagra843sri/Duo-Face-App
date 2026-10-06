@@ -4,9 +4,11 @@ import type { ProfileStore } from '../integrations/firebase/FirestoreProfileStor
 import { createObjectStorage } from '../integrations/storage/R2Storage';
 import type { ObjectStorage } from '../integrations/storage/R2Storage';
 import { AppError } from '../middleware/errorHandler';
-import { buildCompleteness, DRIVER_PROFILES_COLLECTION } from '../types/profile';
-import type { DriverProfileInput, VerificationStatus } from '../types/profile';
+import { buildCompleteness, DRIVER_PROFILES_COLLECTION, reviewNote } from '../types/profile';
+import type { DriverProfileInput, ReviewRecord, VerificationStatus } from '../types/profile';
 import { normalizeAadhaar, normalizeUpper } from '../validators/indianIds';
+import { appEvents } from './appEvents';
+import type { AppEvents } from './appEvents';
 import { DriverService } from './driverService';
 import { FieldCrypto, lastChars, maskLast } from './fieldCrypto';
 import { ProfilePhotoService } from './profilePhotoService';
@@ -36,6 +38,10 @@ export interface DriverProfileDoc {
   photos?: { selfieKey?: string; vehicleKey?: string; selfieCapturedAt?: Date; vehicleCapturedAt?: Date };
   kycStatus: VerificationStatus;
   bankStatus: VerificationStatus;
+  kycReview?: ReviewRecord;
+  bankReview?: ReviewRecord;
+  /** Newest last, capped. */
+  reviewHistory?: ReviewRecord[];
   commissionBps?: number;
   createdAt: Date;
   updatedAt: Date;
@@ -50,6 +56,9 @@ export interface DriverProfileDto {
   photos: { selfieUrl: string | null; vehicleUrl: string | null };
   kycStatus: VerificationStatus;
   bankStatus: VerificationStatus;
+  /** Why the last review rejected this section (only while it is rejected), else null. */
+  kycReviewNote: string | null;
+  bankReviewNote: string | null;
   payoutReady: boolean;
   /** Platform commission (basis points), read-only. Null until configured. */
   commissionBps: number | null;
@@ -103,7 +112,8 @@ export class DriverProfileService implements PhotoTarget {
     })(),
     private readonly storage: ObjectStorage = createObjectStorage(),
     private readonly commissionBps: number | null = loadCommissionBps(),
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly events: AppEvents = appEvents
   ) {
     this.photos = new ProfilePhotoService('driver', storage, this);
   }
@@ -143,6 +153,8 @@ export class DriverProfileService implements PhotoTarget {
       photos: { selfieUrl: this.photos.viewUrl(doc.photos?.selfieKey), vehicleUrl: this.photos.viewUrl(doc.photos?.vehicleKey) },
       kycStatus: doc.kycStatus,
       bankStatus: doc.bankStatus,
+      kycReviewNote: reviewNote(doc.kycStatus, doc.kycReview),
+      bankReviewNote: reviewNote(doc.bankStatus, doc.bankReview),
       payoutReady: doc.kycStatus === 'verified' && doc.bankStatus === 'verified' && bankDone(doc.bank),
       commissionBps: doc.commissionBps ?? null,
       completeness: buildCompleteness([
@@ -161,6 +173,7 @@ export class DriverProfileService implements PhotoTarget {
 
   async update(driverId: string, input: DriverProfileInput): Promise<DriverProfileDto> {
     const doc = await this.load(driverId);
+    const before = { kyc: doc.kycStatus, bank: doc.bankStatus };
     let kycChanged = false;
     let bankChanged = false;
 
@@ -215,6 +228,7 @@ export class DriverProfileService implements PhotoTarget {
     this.recompute(doc, kycChanged, bankChanged);
     doc.updatedAt = this.now();
     await this.store.set(driverId, doc as unknown as Record<string, unknown>);
+    this.announceSubmission(driverId, before, doc);
 
     // Display fields live on the main driver document (merchants see the name; the masked call rings the phone).
     if (input.personal) await this.drivers.updateContact(driverId, { name: input.personal.fullName, phoneNumber: input.personal.contactPhone });
@@ -245,9 +259,17 @@ export class DriverProfileService implements PhotoTarget {
       delete photos[`${field}CapturedAt`];
     }
     doc.photos = photos;
+    const before = { kyc: doc.kycStatus, bank: doc.bankStatus };
     this.recompute(doc, true, false); // photos are KYC evidence: a change re-opens review
     doc.updatedAt = this.now();
     await this.store.set(driverId, doc as unknown as Record<string, unknown>);
+    this.announceSubmission(driverId, before, doc);
+  }
+
+  /** Tell the admins when something newly entered review (not on every edit of a profile already waiting). */
+  private announceSubmission(driverId: string, before: { kyc: VerificationStatus; bank: VerificationStatus }, doc: DriverProfileDoc): void {
+    const newlyPending = (before.kyc !== 'pending_review' && doc.kycStatus === 'pending_review') || (before.bank !== 'pending_review' && doc.bankStatus === 'pending_review');
+    if (newlyPending) void this.events.kycSubmitted({ kind: 'driver', driverId }, String(doc.updatedAt.getTime()));
   }
 
   /** For the future admin tool only (see ProfileVerificationService). */

@@ -29,6 +29,21 @@ export const MERCHANT_PROFILES_COLLECTION = 'duo_face_merchant_profiles';
 export const verificationStatusSchema = z.enum(['incomplete', 'pending_review', 'verified', 'rejected']);
 export type VerificationStatus = z.infer<typeof verificationStatusSchema>;
 
+/** One admin decision on a section of a profile. Kept on the profile itself so it is saved atomically with the status. */
+export interface ReviewRecord {
+  section: 'kyc' | 'bank';
+  decision: 'approved' | 'rejected';
+  /** Why it was rejected: shown to the applicant. */
+  reason?: string;
+  by: string;
+  at: Date;
+}
+
+/** The applicant sees a reason only while the section is still rejected (editing it again clears it from view). */
+export function reviewNote(status: VerificationStatus, record: ReviewRecord | undefined): string | null {
+  return status === 'rejected' && record?.decision === 'rejected' ? (record.reason ?? null) : null;
+}
+
 const text = (min: number, max: number, label: string) =>
   z
     .string({ required_error: `${label} is required.` })

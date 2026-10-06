@@ -4,9 +4,11 @@ import type { ProfileStore } from '../integrations/firebase/FirestoreProfileStor
 import { createObjectStorage } from '../integrations/storage/R2Storage';
 import type { ObjectStorage } from '../integrations/storage/R2Storage';
 import { AppError } from '../middleware/errorHandler';
-import { buildCompleteness, MERCHANT_PROFILES_COLLECTION } from '../types/profile';
-import type { MerchantProfileInput, VerificationStatus } from '../types/profile';
+import { buildCompleteness, MERCHANT_PROFILES_COLLECTION, reviewNote } from '../types/profile';
+import type { MerchantProfileInput, ReviewRecord, VerificationStatus } from '../types/profile';
 import { normalizeUpper } from '../validators/indianIds';
+import { appEvents } from './appEvents';
+import type { AppEvents } from './appEvents';
 import { DuoFaceShopService } from './duoFaceShopService';
 import { FieldCrypto, lastChars, maskLast } from './fieldCrypto';
 import { nextStatus } from './driverProfileService';
@@ -29,6 +31,10 @@ export interface MerchantProfileDoc {
   photos?: { shopKey?: string };
   kycStatus: VerificationStatus;
   bankStatus: VerificationStatus;
+  kycReview?: ReviewRecord;
+  bankReview?: ReviewRecord;
+  /** Newest last, capped. */
+  reviewHistory?: ReviewRecord[];
   commissionBps?: number;
   createdAt: Date;
   updatedAt: Date;
@@ -43,6 +49,9 @@ export interface MerchantProfileDto {
   photoUrl: string | null;
   kycStatus: VerificationStatus;
   bankStatus: VerificationStatus;
+  /** Why the last review rejected this section (only while it is rejected), else null. */
+  kycReviewNote: string | null;
+  bankReviewNote: string | null;
   payoutReady: boolean;
   commissionBps: number | null;
   completeness: ReturnType<typeof buildCompleteness>;
@@ -71,7 +80,8 @@ export class MerchantProfileService implements PhotoTarget {
     })(),
     storage: ObjectStorage = createObjectStorage(),
     private readonly commissionBps: number | null = loadCommissionBps(),
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly events: AppEvents = appEvents
   ) {
     this.photos = new ProfilePhotoService('merchant', storage, this);
   }
@@ -107,6 +117,8 @@ export class MerchantProfileService implements PhotoTarget {
       photoUrl: this.photos.viewUrl(doc.photos?.shopKey),
       kycStatus: doc.kycStatus,
       bankStatus: doc.bankStatus,
+      kycReviewNote: reviewNote(doc.kycStatus, doc.kycReview),
+      bankReviewNote: reviewNote(doc.bankStatus, doc.bankReview),
       payoutReady: doc.kycStatus === 'verified' && doc.bankStatus === 'verified' && bankDone(doc.bank),
       commissionBps: doc.commissionBps ?? null,
       completeness: buildCompleteness([
@@ -125,6 +137,7 @@ export class MerchantProfileService implements PhotoTarget {
 
   async update(shopId: string, input: MerchantProfileInput): Promise<MerchantProfileDto> {
     const doc = await this.load(shopId);
+    const before = { kyc: doc.kycStatus, bank: doc.bankStatus };
     let kycChanged = false;
     let bankChanged = false;
 
@@ -167,6 +180,10 @@ export class MerchantProfileService implements PhotoTarget {
     this.recompute(doc, kycChanged, bankChanged);
     doc.updatedAt = this.now();
     await this.store.set(shopId, doc as unknown as Record<string, unknown>);
+    // Tell the admins when something newly entered review (not on every edit of a profile already waiting).
+    if ((before.kyc !== 'pending_review' && doc.kycStatus === 'pending_review') || (before.bank !== 'pending_review' && doc.bankStatus === 'pending_review')) {
+      void this.events.kycSubmitted({ kind: 'merchant', shopId }, String(doc.updatedAt.getTime()));
+    }
 
     // Display fields live on the main shop document.
     if (input.personal) await this.shops.updateName(shopId, input.personal.shopName);
