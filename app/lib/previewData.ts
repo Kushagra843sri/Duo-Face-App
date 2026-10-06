@@ -14,6 +14,7 @@ import type {
   MerchantProductCatalogEntry,
 } from '@/api/merchant';
 import { distanceMeters } from '@/lib/deliveryProximity';
+import { adminPreviewRoute } from '@/lib/previewAdmin';
 import { previewProfileRoute } from '@/lib/previewProfiles';
 import type { PreviewRole } from '@/lib/preview';
 
@@ -194,7 +195,11 @@ function route(role: PreviewRole, method: string, path: string, body: Record<str
   const seg = pathname.split('/').filter(Boolean);
   const is = (...expected: string[]) => expected.length === seg.length && expected.every((e, i) => e === '*' || e === seg[i]);
 
-  if (is('auth', 'me')) return { firebaseUid: 'preview-user', role, ...(role === 'merchant' ? { shopId: SHOP_ID } : { driverId: DRIVER_ID }) };
+  if (is('auth', 'me')) {
+    return { firebaseUid: 'preview-user', role, ...(role === 'merchant' ? { shopId: SHOP_ID } : role === 'driver' ? { driverId: DRIVER_ID } : {}) };
+  }
+
+  if (role === 'admin') return adminPreviewRoute(method, seg);
 
   if (role === 'merchant') {
     if (is('merchant', 'me')) return { firebaseUid: 'preview-user', role: 'merchant', shopId: SHOP_ID, shopName: 'Fresh Mart (preview)' } satisfies MerchantMe;

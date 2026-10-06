@@ -39,3 +39,6 @@ Project settings → Your apps → add an **Android app** with package `com.duof
 
 ## 8. First data
 There is no admin tool yet. A shop must exist in `shops` (fields `name`, `address`, `isOpen: true`, `isActive: true`), be linked to a merchant through the server's merchant provisioning, and the merchant must set a quantity for each product in the app's inventory screen before customers can buy it.
+
+## 9. Admins (refunds)
+Admins are not stored anywhere: they are an allowlist on the server. In Firebase console -> Authentication -> Users, copy the **User UID** of each person who should be an admin, and set `ADMIN_FIREBASE_UIDS=uid1,uid2` in `server/.env` (restart the server). They sign in with the normal app (Merchant/Driver app, same sign-in screen) and are taken to the admin area automatically. Use accounts that are not also a shop owner or driver: an admin UID is only ever an admin. To remove an admin, delete the UID from the list and restart.

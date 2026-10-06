@@ -12,8 +12,8 @@ export type Accent = {
   onSoftDark: string;
 };
 
-/** Merchant = emerald, Driver = indigo. Same system, distinct identity. */
-export const Accents: Record<'merchant' | 'driver', Accent> = {
+/** Merchant = emerald, Driver = indigo, Admin = slate. Same system, distinct identity. */
+export const Accents: Record<'merchant' | 'driver' | 'admin', Accent> = {
   merchant: {
     solid: '#059669',
     pressed: '#047857',
@@ -21,6 +21,14 @@ export const Accents: Record<'merchant' | 'driver', Accent> = {
     softDark: '#0f3d2e',
     onSoft: '#047857',
     onSoftDark: '#6ee7b7',
+  },
+  admin: {
+    solid: '#475569',
+    pressed: '#334155',
+    soft: '#e2e8f0',
+    softDark: '#1e293b',
+    onSoft: '#334155',
+    onSoftDark: '#cbd5e1',
   },
   driver: {
     solid: '#4f46e5',

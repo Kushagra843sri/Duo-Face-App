@@ -1,1 +1,1 @@
-export type Role = 'merchant' | 'driver';
+export type Role = 'merchant' | 'driver' | 'admin';

@@ -45,6 +45,10 @@ export default function Index() {
     return <Redirect href="/(driver)" />;
   }
 
+  if (role === 'admin') {
+    return <Redirect href="/(admin)" />;
+  }
+
   // Signed in, but the server has no role for this account: offer to create one.
   if (denied?.status === 403) {
     return <RegisterChoice onRegistered={retry} />;
