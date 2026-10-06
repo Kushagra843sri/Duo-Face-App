@@ -1,3 +1,4 @@
+import { loadAdminUids } from '../config/admin';
 import { DuoFaceIdentityService } from './duoFaceIdentityService';
 import type { AuthenticatedPrincipal } from '../types/auth';
 
@@ -32,9 +33,15 @@ export class UnresolvedRoleResolver implements RoleResolver {
  * to null — i.e. a 403 from resolveRole(), not a fabricated role.
  */
 export class DuoFaceRoleResolver implements RoleResolver {
-  constructor(private readonly identityService: DuoFaceIdentityService = new DuoFaceIdentityService()) {}
+  constructor(
+    private readonly identityService: DuoFaceIdentityService = new DuoFaceIdentityService(),
+    /** Firebase UIDs allowed to administer (config/admin.ts). An admin account is only an admin: use separate accounts for shop/driver work. */
+    private readonly adminUids: ReadonlySet<string> = loadAdminUids()
+  ) {}
 
   async resolve(firebaseUid: string): Promise<AuthenticatedPrincipal | null> {
+    if (this.adminUids.has(firebaseUid)) return { firebaseUid, role: 'admin' };
+
     let identity;
     try {
       identity = await this.identityService.getByFirebaseUid(firebaseUid);

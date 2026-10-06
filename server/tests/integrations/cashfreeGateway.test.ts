@@ -5,7 +5,9 @@ import {
   CASHFREE_API_VERSION,
   CashfreeGateway,
   gatewayOrderIdFor,
+  idempotencyKeyFor,
   PaymentGatewayError,
+  refundIdFor,
   toTenDigitPhone,
 } from '../../src/integrations/payments/CashfreeGateway';
 
@@ -129,5 +131,38 @@ describe('helpers', () => {
     expect(ok).toEqual({ appId: 'a', secretKey: 'b', env: 'sandbox', publicBaseUrl: 'https://x.example.com' });
     expect(loadCashfreeConfig({ CASHFREE_APP_ID: 'a', CASHFREE_SECRET_KEY: 'b', PUBLIC_BASE_URL: 'https://x.example.com', CASHFREE_ENV: 'production' })?.env).toBe('production');
     expect(loadCashfreeConfig({ CASHFREE_APP_ID: 'a', CASHFREE_SECRET_KEY: 'b', PUBLIC_BASE_URL: 'https://x.example.com', CASHFREE_ENV: 'live' })).toBeNull();
+  });
+});
+
+describe('refunds', () => {
+  const refund = { gatewayOrderId: 'cf_abc', refundId: 'rf0123', amountPaise: 5700, note: 'Order refund', idempotencyKey: '11111111-2222-4333-8444-555555555555' };
+
+  it('createRefund posts the documented request with the idempotency key', async () => {
+    const { impl, calls } = fakeFetch(200, { refund_status: 'PENDING', refund_amount: 57 });
+    const result = await new CashfreeGateway(config, impl).createRefund(refund);
+    expect(result).toEqual({ status: 'PENDING', amountPaise: 5700 });
+    expect(calls[0].url).toBe('https://sandbox.cashfree.com/pg/orders/cf_abc/refunds');
+    expect((calls[0].init.headers as Record<string, string>)['x-idempotency-key']).toBe(refund.idempotencyKey);
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ refund_amount: 57, refund_id: 'rf0123', refund_note: 'Order refund', refund_speed: 'STANDARD' });
+  });
+
+  it('getRefund reads the status, returns null for a refund that does not exist', async () => {
+    const found = fakeFetch(200, { refund_status: 'SUCCESS', refund_amount: 57 });
+    expect(await new CashfreeGateway(config, found.impl).getRefund('cf_abc', 'rf0123')).toEqual({ status: 'SUCCESS', amountPaise: 5700 });
+    expect(found.calls[0].url).toBe('https://sandbox.cashfree.com/pg/orders/cf_abc/refunds/rf0123');
+    expect(await new CashfreeGateway(config, fakeFetch(404, {}).impl).getRefund('cf_abc', 'rf0123')).toBeNull();
+    expect(await new CashfreeGateway(config, fakeFetch(200, { refund_status: 'NEW_THING' }).impl).getRefund('a', 'b')).toMatchObject({ status: 'UNKNOWN' });
+    await expect(new CashfreeGateway(config, fakeFetch(500, {}).impl).getRefund('a', 'b')).rejects.toMatchObject({ category: 'transient' });
+  });
+
+  it('refund ids are alphanumeric within 40 chars, stable per attempt, different per attempt/order; idempotency key is a UUID', () => {
+    const id = refundIdFor('ord_x', 1);
+    expect(id).toMatch(/^rf[a-f0-9]{32}$/);
+    expect(id.length).toBeLessThanOrEqual(40);
+    expect(refundIdFor('ord_x', 1)).toBe(id);
+    expect(refundIdFor('ord_x', 2)).not.toBe(id);
+    expect(refundIdFor('ord_y', 1)).not.toBe(id);
+    expect(idempotencyKeyFor(id)).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-8[a-f0-9]{3}-[a-f0-9]{12}$/);
+    expect(idempotencyKeyFor(id)).toBe(idempotencyKeyFor(id));
   });
 });

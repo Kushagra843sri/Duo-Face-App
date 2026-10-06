@@ -22,6 +22,10 @@ export interface CustomerStore {
   deleteAddress(uid: string, addressId: string): Promise<void>;
   listOrdersByCustomer(uid: string): Promise<Doc[]>;
   getOrder(orderId: string): Promise<Doc | null>;
+  /** Orders where money is owed back to the customer (refundRequired == true): due, processing or failed. */
+  listRefundOrders(): Promise<Doc[]>;
+  /** The most recent refunds that completed. */
+  listRefundedOrders(limit: number): Promise<Doc[]>;
   /** Online orders created but not yet paid (equality query on one field: auto-indexed). */
   listAwaitingPaymentOrders(): Promise<Doc[]>;
   runTransaction<T>(fn: (tx: CheckoutTx) => Promise<T>): Promise<T>;
@@ -76,6 +80,16 @@ export class FirestoreCustomerStore implements CustomerStore {
   async getOrder(orderId: string): Promise<Doc | null> {
     const snap = await (await this.db()).collection('orders').doc(orderId).get();
     return snap.exists ? { ...snap.data(), orderId: snap.id } : null;
+  }
+
+  async listRefundOrders(): Promise<Doc[]> {
+    const snap = await (await this.db()).collection('orders').where('refundRequired', '==', true).get();
+    return snap.docs.map((d) => ({ ...d.data(), orderId: d.id }));
+  }
+
+  async listRefundedOrders(limit: number): Promise<Doc[]> {
+    const snap = await (await this.db()).collection('orders').where('refund.status', '==', 'refunded').limit(limit).get();
+    return snap.docs.map((d) => ({ ...d.data(), orderId: d.id }));
   }
 
   async listAwaitingPaymentOrders(): Promise<Doc[]> {

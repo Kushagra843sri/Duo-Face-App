@@ -14,6 +14,24 @@ export interface GatewayOrder {
   paymentSessionId: string | null;
 }
 
+export type GatewayRefundStatus = 'SUCCESS' | 'PENDING' | 'PENDING_APPROVAL' | 'ONHOLD' | 'CANCELLED' | 'REJECTED' | 'UNKNOWN';
+
+export interface GatewayRefund {
+  status: GatewayRefundStatus;
+  /** Exact amount in integer paise. */
+  amountPaise: number;
+}
+
+export interface CreateGatewayRefundInput {
+  gatewayOrderId: string;
+  /** Our refund reference (alphanumeric, 3-40 chars). Reusing it never creates a second refund. */
+  refundId: string;
+  amountPaise: number;
+  note: string;
+  /** UUID; Cashfree replays the first response for a repeated key. */
+  idempotencyKey: string;
+}
+
 export interface CreateGatewayOrderInput {
   /** Our payment reference (3-45 chars: letters, digits, _ and -). */
   gatewayOrderId: string;
@@ -41,6 +59,8 @@ export interface PaymentGateway {
   readonly mode: 'sandbox' | 'production';
   createOrder(input: CreateGatewayOrderInput): Promise<GatewayOrder>;
   getOrder(gatewayOrderId: string): Promise<GatewayOrder | null>;
+  createRefund(input: CreateGatewayRefundInput): Promise<GatewayRefund>;
+  getRefund(gatewayOrderId: string, refundId: string): Promise<GatewayRefund | null>;
   /** Best effort: stop a still-unpaid gateway order from being paid after we cancelled it. */
   terminateOrder(gatewayOrderId: string): Promise<void>;
   verifyWebhookSignature(rawBody: string, timestamp: string, signature: string): boolean;
@@ -49,6 +69,17 @@ export interface PaymentGateway {
 /** Deterministic and within Cashfree's 45-character limit, whatever our order id looks like. */
 export function gatewayOrderIdFor(orderId: string): string {
   return `cf_${createHash('sha256').update(orderId).digest('hex').slice(0, 32)}`;
+}
+
+/** Alphanumeric only (Cashfree: 3-40 chars). One id per order and attempt, so a retry of the same attempt can never double-refund. */
+export function refundIdFor(orderId: string, attempt: number): string {
+  return `rf${createHash('sha256').update(`${orderId}:${attempt}`).digest('hex').slice(0, 32)}`;
+}
+
+/** UUID-shaped key derived from the refund id (Cashfree requires a UUID for x-idempotency-key). */
+export function idempotencyKeyFor(refundId: string): string {
+  const h = createHash('sha256').update(`idem:${refundId}`).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
 /** Cashfree wants the 10-digit national number. Returns null for anything else. */
@@ -76,7 +107,12 @@ export class CashfreeGateway implements PaymentGateway {
     return this.config.env === 'production' ? 'https://api.cashfree.com/pg' : 'https://sandbox.cashfree.com/pg';
   }
 
-  private async call(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<Record<string, unknown>> {
+  private async call(
+    method: 'GET' | 'POST' | 'PATCH',
+    path: string,
+    body?: unknown,
+    extraHeaders: Record<string, string> = {}
+  ): Promise<Record<string, unknown>> {
     let response: Response;
     try {
       response = await this.fetchImpl(`${this.baseUrl}${path}`, {
@@ -87,6 +123,7 @@ export class CashfreeGateway implements PaymentGateway {
           'x-client-secret': this.config.secretKey,
           'Content-Type': 'application/json',
           Accept: 'application/json',
+          ...extraHeaders,
         },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -130,6 +167,34 @@ export class CashfreeGateway implements PaymentGateway {
   async getOrder(gatewayOrderId: string): Promise<GatewayOrder | null> {
     try {
       return this.toOrder(await this.call('GET', `/orders/${encodeURIComponent(gatewayOrderId)}`));
+    } catch (err) {
+      if (err instanceof PaymentGatewayError && err.category === 'not_found') return null;
+      throw err;
+    }
+  }
+
+  private toRefund(raw: Record<string, unknown>): GatewayRefund {
+    const known = ['SUCCESS', 'PENDING', 'PENDING_APPROVAL', 'ONHOLD', 'CANCELLED', 'REJECTED'];
+    const amount = Number(raw.refund_amount);
+    return {
+      status: known.includes(String(raw.refund_status)) ? (raw.refund_status as GatewayRefundStatus) : 'UNKNOWN',
+      amountPaise: Number.isFinite(amount) ? Math.round(amount * 100) : -1,
+    };
+  }
+
+  async createRefund(input: CreateGatewayRefundInput): Promise<GatewayRefund> {
+    const raw = await this.call(
+      'POST',
+      `/orders/${encodeURIComponent(input.gatewayOrderId)}/refunds`,
+      { refund_amount: input.amountPaise / 100, refund_id: input.refundId, refund_note: input.note, refund_speed: 'STANDARD' },
+      { 'x-idempotency-key': input.idempotencyKey }
+    );
+    return this.toRefund(raw);
+  }
+
+  async getRefund(gatewayOrderId: string, refundId: string): Promise<GatewayRefund | null> {
+    try {
+      return this.toRefund(await this.call('GET', `/orders/${encodeURIComponent(gatewayOrderId)}/refunds/${encodeURIComponent(refundId)}`));
     } catch (err) {
       if (err instanceof PaymentGatewayError && err.category === 'not_found') return null;
       throw err;

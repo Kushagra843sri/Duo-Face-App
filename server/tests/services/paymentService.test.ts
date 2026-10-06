@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 
 import { PAYMENT_HOLD_MINUTES } from '../../src/config/cashfree';
 import { CashfreeGateway, gatewayOrderIdFor, PaymentGatewayError } from '../../src/integrations/payments/CashfreeGateway';
-import type { CreateGatewayOrderInput, GatewayOrder, PaymentGateway } from '../../src/integrations/payments/CashfreeGateway';
+import type { CreateGatewayOrderInput, CreateGatewayRefundInput, GatewayOrder, GatewayRefund, PaymentGateway } from '../../src/integrations/payments/CashfreeGateway';
 import { CustomerOrderService } from '../../src/services/customerOrderService';
 import { MerchantOrderService } from '../../src/services/merchantOrderService';
 import { OrderStatusService } from '../../src/services/orderStatusService';
@@ -33,6 +33,12 @@ class FakeGateway implements PaymentGateway {
     if (this.down) throw new PaymentGatewayError('transient');
     const g = this.orders.get(id);
     return g ? { ...g } : null;
+  }
+  async createRefund(_input: CreateGatewayRefundInput): Promise<GatewayRefund> {
+    throw new Error('not used in payment tests');
+  }
+  async getRefund(): Promise<GatewayRefund | null> {
+    throw new Error('not used in payment tests');
   }
   async terminateOrder(id: string) {
     this.terminated.push(id);

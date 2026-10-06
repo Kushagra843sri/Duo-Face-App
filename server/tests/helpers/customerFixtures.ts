@@ -51,6 +51,12 @@ export class FakeCustomerStore implements CustomerStore {
   async listOrdersByCustomer(uid: string) {
     return this.all('orders').filter(([, d]) => d.customerId === uid).map(([id, d]) => ({ ...d, orderId: id }));
   }
+  async listRefundOrders() {
+    return this.all('orders').filter(([, d]) => d.refundRequired === true).map(([id, d]) => ({ ...d, orderId: id }));
+  }
+  async listRefundedOrders(limit: number) {
+    return this.all('orders').filter(([, d]) => (d.refund as { status?: string } | undefined)?.status === 'refunded').slice(0, limit).map(([id, d]) => ({ ...d, orderId: id }));
+  }
   async listAwaitingPaymentOrders() {
     return this.all('orders').filter(([, d]) => d.paymentStatus === 'awaiting_payment').map(([id, d]) => ({ ...d, orderId: id }));
   }

@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import type { DuoFaceDriver } from './duoFaceDriver';
 import type { DuoFaceShop } from './duoFaceShop';
 
-export type Role = 'merchant' | 'driver';
+export type Role = 'merchant' | 'driver' | 'admin';
 
 /** Everything Firebase ID-token verification alone guarantees. Nothing about role. */
 export interface VerifiedFirebaseIdentity {

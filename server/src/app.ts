@@ -11,7 +11,8 @@ import { createCashfreeWebhookRouter } from './routes/webhooks/cashfree';
 import type { RawBodyRequest } from './routes/webhooks/cashfree';
 import { createPayRouter } from './routes/pay';
 import { createCustomerConfigRouter } from './routes/customer/config';
-import { cashfreeConfig, customerOrderService, paymentService } from './paymentRuntime';
+import { cashfreeConfig, customerOrderService, paymentService, refundService } from './paymentRuntime';
+import { createAdminRouter } from './routes/admin';
 import { createCustomerAddressesRouter } from './routes/customer/addresses';
 import { createCustomerCatalogRouter } from './routes/customer/catalog';
 import { createCustomerOrdersRouter } from './routes/customer/orders';
@@ -64,6 +65,7 @@ app.use(
   '/customer/orders',
   createCustomerOrdersRouter(undefined, customerOrderService, undefined, undefined, undefined, paymentService)
 );
+app.use('/admin', createAdminRouter(undefined, undefined, refundService));
 app.use('/pay', createPayRouter(cashfreeConfig?.env ?? 'sandbox'));
 app.use('/webhooks/cashfree', createCashfreeWebhookRouter(paymentService));
 app.use('/merchant', createMerchantRouter());

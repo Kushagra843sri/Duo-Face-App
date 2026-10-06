@@ -16,7 +16,7 @@ export const ALLOWED_TRANSITIONS: Record<OrderFulfillmentStatus, readonly OrderF
   rejected: [],
 };
 
-export type OrderActor = { type: 'customer' | 'merchant' | 'driver' | 'system'; id: string };
+export type OrderActor = { type: 'customer' | 'merchant' | 'driver' | 'admin' | 'system'; id: string };
 
 export class InvalidOrderTransitionError extends Error {
   constructor(

@@ -16,7 +16,7 @@ import { DeliveryCodeService } from './services/deliveryCodeService';
 import { DriverDispatchService } from './services/driverDispatchService';
 import { dispatchTriggerHub } from './services/dispatchTrigger';
 import { NotificationService } from './services/notificationService';
-import { paymentService } from './paymentRuntime';
+import { paymentService, refundService } from './paymentRuntime';
 
 const env = loadEnv();
 
@@ -54,6 +54,7 @@ httpServer.listen(env.PORT, () => {
       sweeping = true;
       paymentService
         .sweep()
+        .then(() => refundService.sweep())
         .catch(() => console.warn('Payment expiry sweep failed'))
         .finally(() => {
           sweeping = false;

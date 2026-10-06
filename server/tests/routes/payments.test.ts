@@ -2,6 +2,9 @@ import { createHmac } from 'node:crypto';
 
 import request from 'supertest';
 
+// These tests boot the whole Express app (isolated modules); under a parallel full-suite run that can take a while.
+jest.setTimeout(30_000);
+
 const SECRET = 'route-test-secret';
 
 function loadApp(env: Record<string, string | undefined>) {
