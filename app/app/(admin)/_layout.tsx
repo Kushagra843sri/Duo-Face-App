@@ -1,33 +1,39 @@
-import { Stack } from 'expo-router';
-import { LogOut } from 'lucide-react-native';
-import { Pressable } from 'react-native';
+import { Tabs } from 'expo-router';
+import { BadgeIndianRupee, LogOut, ShieldCheck } from 'lucide-react-native';
+import { Pressable, View } from 'react-native';
 
 import { getAdminMe } from '@/api/admin';
 import { ErrorState } from '@/components/ErrorState';
+import { HeaderBack } from '@/components/HeaderBack';
 import { LoadingState } from '@/components/LoadingState';
+import { NotificationBell } from '@/components/NotificationBell';
 import { AccentProvider, usePalette } from '@/components/ui';
-import { useHeaderOptions } from '@/constants/navigation';
+import { useTabOptions } from '@/constants/navigation';
 import { useApiResource } from '@/hooks/useApiResource';
 import { authService } from '@/lib/authService';
 
-function AdminStack() {
-  const header = useHeaderOptions();
+function HeaderActions() {
   const palette = usePalette();
   return (
-    <Stack screenOptions={header}>
-      <Stack.Screen
-        name="index"
-        options={{
-          title: 'Refunds',
-          headerRight: () => (
-            <Pressable accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={10} onPress={() => authService.signOut()} style={{ paddingHorizontal: 12 }}>
-              <LogOut size={22} color={palette.text} />
-            </Pressable>
-          ),
-        }}
-      />
-      <Stack.Screen name="refund/[orderId]" options={{ title: 'Refund' }} />
-    </Stack>
+    <View className="flex-row items-center">
+      <NotificationBell />
+      <Pressable accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={10} onPress={() => authService.signOut()} style={{ paddingRight: 14 }}>
+        <LogOut size={22} color={palette.text} />
+      </Pressable>
+    </View>
+  );
+}
+
+function AdminTabs() {
+  const tabOptions = useTabOptions();
+  return (
+    <Tabs screenOptions={{ headerShown: true, ...tabOptions, headerRight: () => <HeaderActions /> }}>
+      <Tabs.Screen name="index" options={{ title: 'Refunds', tabBarIcon: ({ color, size }) => <BadgeIndianRupee color={color} size={size} /> }} />
+      <Tabs.Screen name="verifications" options={{ title: 'KYC review', tabBarIcon: ({ color, size }) => <ShieldCheck color={color} size={size} /> }} />
+      {/* Detail screens: reachable from the lists, not tabs themselves. */}
+      <Tabs.Screen name="refund/[orderId]" options={{ title: 'Refund', href: null, headerLeft: () => <HeaderBack fallback="/(admin)" /> }} />
+      <Tabs.Screen name="review/[kind]/[ownerId]" options={{ title: 'Review', href: null, headerLeft: () => <HeaderBack fallback="/(admin)/verifications" /> }} />
+    </Tabs>
   );
 }
 
@@ -59,7 +65,7 @@ export default function AdminLayout() {
 
   return (
     <AccentProvider role="admin">
-      <AdminStack />
+      <AdminTabs />
     </AccentProvider>
   );
 }

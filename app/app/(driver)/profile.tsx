@@ -169,6 +169,8 @@ export default function DriverProfileScreen() {
         photoUri={data.photos.selfieUrl}
         kycStatus={data.kycStatus}
         bankStatus={data.bankStatus}
+        kycNote={data.kycReviewNote}
+        bankNote={data.bankReviewNote}
         completeness={data.completeness}
       />
 

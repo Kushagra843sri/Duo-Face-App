@@ -32,6 +32,9 @@ export interface DriverProfile {
   photos: { selfieUrl: string | null; vehicleUrl: string | null };
   kycStatus: VerificationStatus;
   bankStatus: VerificationStatus;
+  /** Why the last review rejected this section (only while it is rejected), else null. */
+  kycReviewNote: string | null;
+  bankReviewNote: string | null;
   payoutReady: boolean;
   commissionBps: number | null;
   completeness: Completeness;
@@ -45,6 +48,9 @@ export interface MerchantProfile {
   photoUrl: string | null;
   kycStatus: VerificationStatus;
   bankStatus: VerificationStatus;
+  /** Why the last review rejected this section (only while it is rejected), else null. */
+  kycReviewNote: string | null;
+  bankReviewNote: string | null;
   payoutReady: boolean;
   commissionBps: number | null;
   completeness: Completeness;

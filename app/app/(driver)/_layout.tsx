@@ -6,6 +6,7 @@ import { AutoLocation } from '@/components/AutoLocation';
 import { ErrorState } from '@/components/ErrorState';
 import { HeaderBack } from '@/components/HeaderBack';
 import { LoadingState } from '@/components/LoadingState';
+import { NotificationBell } from '@/components/NotificationBell';
 import { AccentProvider } from '@/components/ui';
 import { useTabOptions } from '@/constants/navigation';
 import { useApiResource } from '@/hooks/useApiResource';
@@ -15,7 +16,7 @@ function DriverTabs() {
   return (
     <>
     <AutoLocation />
-      <Tabs screenOptions={{ headerShown: true, ...tabOptions }}>
+      <Tabs screenOptions={{ headerShown: true, ...tabOptions, headerRight: () => <NotificationBell /> }}>
         <Tabs.Screen
           name="index"
           options={{ title: 'Dashboard', tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size} /> }}

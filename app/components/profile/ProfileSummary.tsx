@@ -34,11 +34,14 @@ interface Props {
   photoUri?: string | null;
   kycStatus: VerificationStatus;
   bankStatus: VerificationStatus;
+  /** The reviewer's reason while a section is rejected, so the person knows what to fix. */
+  kycNote?: string | null;
+  bankNote?: string | null;
   completeness: Completeness;
 }
 
 /** Top of the profile: who you are, review status, and what is still missing. */
-export function ProfileSummary({ name, subtitle, photoUri, kycStatus, bankStatus, completeness }: Props) {
+export function ProfileSummary({ name, subtitle, photoUri, kycStatus, bankStatus, kycNote, bankNote, completeness }: Props) {
   const accent = useAccent();
   const palette = usePalette();
   const ratio = completeness.total > 0 ? completeness.completed / completeness.total : 0;
@@ -63,6 +66,24 @@ export function ProfileSummary({ name, subtitle, photoUri, kycStatus, bankStatus
         <Badge label={`KYC: ${STATUS[kycStatus].label}`} tone={STATUS[kycStatus].tone} />
         <Badge label={`Bank: ${STATUS[bankStatus].label}`} tone={STATUS[bankStatus].tone} />
       </View>
+
+      {kycStatus === 'rejected' || bankStatus === 'rejected' ? (
+        <View className="gap-1 rounded-2xl bg-red-50 p-3 dark:bg-red-950">
+          {kycStatus === 'rejected' ? (
+            <Text className="text-sm text-red-800 dark:text-red-200">
+              <Text className="font-bold">KYC needs changes: </Text>
+              {kycNote ?? 'Please review your details and save again.'}
+            </Text>
+          ) : null}
+          {bankStatus === 'rejected' ? (
+            <Text className="text-sm text-red-800 dark:text-red-200">
+              <Text className="font-bold">Bank needs changes: </Text>
+              {bankNote ?? 'Please review your bank details and save again.'}
+            </Text>
+          ) : null}
+          <Text className="text-xs text-red-700 dark:text-red-300">Update the details below and save: they go back for review.</Text>
+        </View>
+      ) : null}
 
       <View className="gap-2">
         <View className="flex-row items-center justify-between">

@@ -1,5 +1,6 @@
 import type { RefundItem } from '@/api/admin';
 import { ApiError } from '@/api/errors';
+import { adminVerificationRoute } from '@/lib/previewReviews';
 
 /**
  * DEVELOPMENT-ONLY (lib/preview.ts): in-memory refunds so the admin screens can
@@ -38,10 +39,11 @@ const find = (id: string): RefundItem => {
   return r;
 };
 
-export function adminPreviewRoute(method: string, seg: string[]): unknown {
+export function adminPreviewRoute(method: string, seg: string[], body: Record<string, unknown> = {}): unknown {
   const [, area, id, action] = seg;
   if (seg[0] !== 'admin') throw new ApiError(404, 'Not found');
   if (area === 'me') return { firebaseUid: 'preview-user', role: 'admin' };
+  if (area === 'verifications') return adminVerificationRoute(method, seg, body);
   if (area !== 'refunds') throw new ApiError(404, 'Not found');
 
   if (!id) {

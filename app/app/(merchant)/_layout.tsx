@@ -5,6 +5,7 @@ import { getMerchantMe } from '@/api/merchant';
 import { ErrorState } from '@/components/ErrorState';
 import { HeaderBack } from '@/components/HeaderBack';
 import { LoadingState } from '@/components/LoadingState';
+import { NotificationBell } from '@/components/NotificationBell';
 import { AccentProvider } from '@/components/ui';
 import { useTabOptions } from '@/constants/navigation';
 import { useApiResource } from '@/hooks/useApiResource';
@@ -12,7 +13,7 @@ import { useApiResource } from '@/hooks/useApiResource';
 function MerchantTabs() {
   const tabOptions = useTabOptions();
   return (
-    <Tabs screenOptions={{ headerShown: true, ...tabOptions }}>
+    <Tabs screenOptions={{ headerShown: true, ...tabOptions, headerRight: () => <NotificationBell /> }}>
       <Tabs.Screen
         name="index"
         options={{ title: 'Dashboard', tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size} /> }}

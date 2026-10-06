@@ -117,6 +117,13 @@ export class FirebaseAuthService implements AuthService {
 
   async signOut(): Promise<void> {
     if (!this.auth) return;
+    // Stop this phone receiving the signed-out person's notifications (needs the session, so before signing out).
+    try {
+      const { unregisterFromPush } = await import('@/lib/push');
+      await unregisterFromPush();
+    } catch {
+      // best effort
+    }
     await this.auth.signOut();
   }
 }

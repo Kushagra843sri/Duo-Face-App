@@ -15,6 +15,7 @@ import type {
 } from '@/api/merchant';
 import { distanceMeters } from '@/lib/deliveryProximity';
 import { adminPreviewRoute } from '@/lib/previewAdmin';
+import { previewNotificationsRoute } from '@/lib/previewNotifications';
 import { previewProfileRoute } from '@/lib/previewProfiles';
 import type { PreviewRole } from '@/lib/preview';
 
@@ -199,7 +200,10 @@ function route(role: PreviewRole, method: string, path: string, body: Record<str
     return { firebaseUid: 'preview-user', role, ...(role === 'merchant' ? { shopId: SHOP_ID } : role === 'driver' ? { driverId: DRIVER_ID } : {}) };
   }
 
-  if (role === 'admin') return adminPreviewRoute(method, seg);
+  const notifications = previewNotificationsRoute(role, method, pathname);
+  if (notifications !== undefined) return notifications;
+
+  if (role === 'admin') return adminPreviewRoute(method, seg, body);
 
   if (role === 'merchant') {
     if (is('merchant', 'me')) return { firebaseUid: 'preview-user', role: 'merchant', shopId: SHOP_ID, shopName: 'Fresh Mart (preview)' } satisfies MerchantMe;

@@ -167,6 +167,8 @@ export default function MerchantProfileScreen() {
         photoUri={data.photoUrl}
         kycStatus={data.kycStatus}
         bankStatus={data.bankStatus}
+        kycNote={data.kycReviewNote}
+        bankNote={data.bankReviewNote}
         completeness={data.completeness}
       />
 
