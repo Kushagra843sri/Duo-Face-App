@@ -18,7 +18,8 @@ export function EmptyState({ title, description, icon = Inbox, children }: Props
       <IconChip icon={icon} size={72} />
       <Text className="text-center text-lg font-bold text-ink dark:text-ink-dark">{title}</Text>
       {description ? <Text className="text-center text-sm text-muted dark:text-muted-dark">{description}</Text> : null}
-      {children}
+      {/* One shared, centred, bounded slot for actions, so a button can never end up stuck at the left edge. */}
+      {children ? <View className="mt-2 w-full max-w-xs">{children}</View> : null}
     </View>
   );
 }
