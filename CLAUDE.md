@@ -8,7 +8,7 @@ Full spec: `docs/SPEC.md`. Read the relevant section before building a feature. 
 - App: React Native + Expo, Expo Router, NativeWind, Lucide icons, TypeScript
 - Server: Node.js + Express, Socket.io with Redis adapter, TypeScript
 - DB: client's existing Cloud Firestore (the Customer App's — "Allz Bharat" — Firebase project), accessed via the Firebase Admin SDK from the Duo-Face server only, never from the mobile app. Existing collections/fields are documented in `docs/integration/CUSTOMER_APP_REQUIREMENTS.md`, sourced from the real Customer App code, not assumed. New Duo-Face-owned collections are designed separately (see `docs/decisions/002-customer-app-integration.md`, `docs/decisions/003-inventory-and-financial-boundaries.md`)
-- Services: Google Maps (India pricing), Firebase (FCM + phone auth), Cloudflare R2, Razorpay
+- Services: Google Maps (India pricing), Firebase (FCM + phone auth), Cloudflare R2, Cashfree (payments; decision 031)
 
 ## Architecture
 
