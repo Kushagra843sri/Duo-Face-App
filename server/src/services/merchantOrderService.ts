@@ -85,6 +85,8 @@ export class MerchantOrderService {
         console.warn(`MerchantOrderService: skipping order ${parsed.data.orderId} with mismatched shopId`);
         continue;
       }
+      // An online order the customer has not paid for yet is not the shop's order.
+      if (parsed.data.paymentStatus === 'awaiting_payment') continue;
       const createdAt = toIsoString(parsed.data.createdAt);
       if (!createdAt) {
         console.warn(`MerchantOrderService: skipping order ${parsed.data.orderId} with unparseable createdAt`);
@@ -112,7 +114,7 @@ export class MerchantOrderService {
 
     // Cross-shop isolation: never reveal another shop's order, even to a
     // merchant who already knows/guesses a valid orderId.
-    if (order.shopId !== customerAppShopId) {
+    if (order.shopId !== customerAppShopId || order.paymentStatus === 'awaiting_payment') {
       return null;
     }
 

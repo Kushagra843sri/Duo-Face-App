@@ -9,6 +9,7 @@ import { createRateLimiter } from '../../middleware/rateLimit';
 import { validateBody } from '../../middleware/validateBody';
 import { CustomerDeliveryCodeService } from '../../services/customerDeliveryCodeService';
 import { CustomerOrderService } from '../../services/customerOrderService';
+import { PaymentService } from '../../services/paymentService';
 import type { AuthenticatedRequest } from '../../types/auth';
 import { placeOrderBodySchema } from '../../types/customerOrder';
 import type { PlaceOrderBody } from '../../types/customerOrder';
@@ -32,7 +33,8 @@ export function createCustomerOrdersRouter(
     ...CUSTOMER_ORDER_READ_RATE_LIMIT,
     keyFor: (req) => req.identity?.firebaseUid,
   }) as RequestHandler,
-  deliveryCodeService: CustomerDeliveryCodeService = new CustomerDeliveryCodeService()
+  deliveryCodeService: CustomerDeliveryCodeService = new CustomerDeliveryCodeService(),
+  paymentService: PaymentService = new PaymentService(service, null, null)
 ) {
   const router = Router();
   router.use(authenticateFirebase(verifier));
@@ -68,6 +70,22 @@ export function createCustomerOrdersRouter(
     readLimiter,
     asyncHandler(async (req: AuthenticatedRequest, res) => {
       res.json(await deliveryCodeService.getCode(req.identity!.firebaseUid, req.params.orderId));
+    })
+  );
+
+  router.post(
+    '/:orderId/payment',
+    readLimiter,
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      res.json(await paymentService.startPayment(req.identity!.firebaseUid, req.params.orderId));
+    })
+  );
+
+  router.post(
+    '/:orderId/payment/verify',
+    readLimiter,
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      res.json({ order: await paymentService.verify(req.identity!.firebaseUid, req.params.orderId) });
     })
   );
 

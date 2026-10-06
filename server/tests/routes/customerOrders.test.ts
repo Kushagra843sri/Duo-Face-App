@@ -125,7 +125,7 @@ describe('order ownership over HTTP', () => {
     const { app } = build();
     const { body } = await request(app).post('/customer/orders').set(asA).send(order());
     expect(Object.keys(body.order).sort()).toEqual(
-      ['createdAt', 'delivery', 'items', 'orderId', 'paymentMethod', 'paymentStatus', 'pricing', 'shopId', 'shopName', 'status'].sort()
+      ['createdAt', 'delivery', 'items', 'orderId', 'paymentExpiresAt', 'paymentMethod', 'paymentStatus', 'pricing', 'shopId', 'shopName', 'status'].sort()
     );
   });
 });

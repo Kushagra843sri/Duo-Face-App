@@ -43,6 +43,11 @@ export async function restoreStock(tx: CheckoutTx, shopId: string, items: Doc[],
   }
 }
 
+/** Nothing happens to an online order until it is paid. */
+function assertPaymentSettled(raw: Doc): void {
+  if (raw.paymentStatus === 'awaiting_payment') throw new AppError(409, "This order is waiting for the customer's payment.");
+}
+
 function parseStatus(raw: Doc): OrderFulfillmentStatus {
   const parsed = orderFulfillmentStatusSchema.safeParse(raw.status);
   if (!parsed.success) throw new AppError(409, 'Order is in an unknown state');
@@ -64,6 +69,7 @@ export class OrderStatusService {
   async transition(orderId: string, shopId: string, to: OrderFulfillmentStatus, actor: OrderActor): Promise<OrderFulfillmentStatus> {
     return this.store.runTransaction(async (tx) => {
       const raw = await this.loadOwned(tx, orderId, shopId);
+      assertPaymentSettled(raw);
       const from = parseStatus(raw);
       if (from === to) return to;
       try {
@@ -87,6 +93,7 @@ export class OrderStatusService {
   async markOutForDelivery(orderId: string, shopId: string, actor: OrderActor): Promise<OrderFulfillmentStatus> {
     return this.store.runTransaction(async (tx) => {
       const raw = await this.loadOwned(tx, orderId, shopId);
+      assertPaymentSettled(raw);
       const from = parseStatus(raw);
       if (from === 'out_for_delivery' || from === 'delivered') return from;
       const start = FORWARD_PATH.indexOf(from);
@@ -119,15 +126,19 @@ export class OrderStatusService {
     now: Date
   ): Promise<void> {
     const finalStatus = steps[steps.length - 1][1];
+    const refundDue = RESTOCKING.includes(finalStatus) && raw.paymentMethod === 'online' && raw.paymentStatus === 'paid';
     if (RESTOCKING.includes(finalStatus)) {
       await restoreStock(tx, shopId, Array.isArray(raw.items) ? (raw.items as Doc[]) : [], now);
     }
+    // Money was taken for an order that will not happen: record it so it is never lost (refunds are manual for now).
+    if (refundDue) console.warn(`OrderStatusService: order ${orderId} was paid online and ended ${finalStatus}; refund required`);
     tx.set('orders', orderId, {
       ...raw,
       status: finalStatus,
       updatedAt: now,
       ...(finalStatus === 'cancelled' ? { cancelledAt: now } : {}),
       ...(finalStatus === 'rejected' ? { rejectedAt: now } : {}),
+      ...(refundDue ? { refundRequired: true } : {}),
     });
     for (const [from, to] of steps) {
       tx.set('order_events', `${orderId}__${from}_${to}`, { ...buildOrderEvent(orderId, shopId, from, to, actor, now) });

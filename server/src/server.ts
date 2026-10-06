@@ -16,6 +16,7 @@ import { DeliveryCodeService } from './services/deliveryCodeService';
 import { DriverDispatchService } from './services/driverDispatchService';
 import { dispatchTriggerHub } from './services/dispatchTrigger';
 import { NotificationService } from './services/notificationService';
+import { paymentService } from './paymentRuntime';
 
 const env = loadEnv();
 
@@ -44,4 +45,19 @@ httpServer.listen(env.PORT, () => {
   console.log(`Duo-Face server listening on port ${env.PORT} (${env.NODE_ENV})`);
   // Restart recovery: re-attempt syncs left pending/failed-retryable (bounded, best effort).
   void orderSync.retryOutstanding().catch(() => console.warn('Order sync recovery sweep failed'));
+
+  // Unpaid online orders: confirm late payments and release the stock of the ones that ran out of time (decision 031).
+  if (paymentService.enabled) {
+    let sweeping = false;
+    setInterval(() => {
+      if (sweeping) return;
+      sweeping = true;
+      paymentService
+        .sweep()
+        .catch(() => console.warn('Payment expiry sweep failed'))
+        .finally(() => {
+          sweeping = false;
+        });
+    }, 60_000).unref();
+  }
 });

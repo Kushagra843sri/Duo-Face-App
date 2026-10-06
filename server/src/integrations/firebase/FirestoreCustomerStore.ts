@@ -22,6 +22,8 @@ export interface CustomerStore {
   deleteAddress(uid: string, addressId: string): Promise<void>;
   listOrdersByCustomer(uid: string): Promise<Doc[]>;
   getOrder(orderId: string): Promise<Doc | null>;
+  /** Online orders created but not yet paid (equality query on one field: auto-indexed). */
+  listAwaitingPaymentOrders(): Promise<Doc[]>;
   runTransaction<T>(fn: (tx: CheckoutTx) => Promise<T>): Promise<T>;
 }
 
@@ -74,6 +76,11 @@ export class FirestoreCustomerStore implements CustomerStore {
   async getOrder(orderId: string): Promise<Doc | null> {
     const snap = await (await this.db()).collection('orders').doc(orderId).get();
     return snap.exists ? { ...snap.data(), orderId: snap.id } : null;
+  }
+
+  async listAwaitingPaymentOrders(): Promise<Doc[]> {
+    const snap = await (await this.db()).collection('orders').where('paymentStatus', '==', 'awaiting_payment').get();
+    return snap.docs.map((d) => ({ ...d.data(), orderId: d.id }));
   }
 
   async runTransaction<T>(fn: (tx: CheckoutTx) => Promise<T>): Promise<T> {

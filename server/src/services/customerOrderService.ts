@@ -5,6 +5,9 @@ import { buildInventoryId, inventoryItemSchema } from '../types/inventoryItem';
 import type { CustomerOrderView, PlaceOrderBody } from '../types/customerOrder';
 import { orderFulfillmentStatusSchema } from '../types/customerAppOrder';
 import type { OrderFulfillmentStatus } from '../types/customerAppOrder';
+import { PAYMENT_HOLD_MINUTES } from '../config/cashfree';
+import { gatewayOrderIdFor } from '../integrations/payments/CashfreeGateway';
+import type { PaymentGateway } from '../integrations/payments/CashfreeGateway';
 import { computeFees, paiseToRupees, rupeesToPaise } from './money';
 import { assertTransition, buildOrderEvent, canTransition } from './orderState';
 import { restoreStock } from './orderStatusService';
@@ -35,10 +38,15 @@ export function buildOrderId(uid: string, clientRequestId: string): string {
 export class CustomerOrderService {
   constructor(
     private readonly store: CustomerStore = new FirestoreCustomerStore(),
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    /** Null = online payment is not configured: only cash on delivery can be ordered. */
+    private readonly gateway: PaymentGateway | null = null
   ) {}
 
   async placeOrder(uid: string, body: PlaceOrderBody): Promise<{ order: CustomerOrderView; created: boolean }> {
+    if (body.paymentMethod === 'online' && !this.gateway) {
+      throw new AppError(503, 'Online payment is not available right now. Please choose cash on delivery.');
+    }
     const address = await this.store.getAddress(uid, body.addressId);
     if (!address) throw new AppError(404, 'Delivery address not found');
 
@@ -93,6 +101,8 @@ export class CustomerOrderService {
       const fees = computeFees(subtotalPaise);
       const totalPaise = subtotalPaise + fees.deliveryFeePaise + fees.platformFeePaise;
       const now = this.now();
+      const online = body.paymentMethod === 'online';
+      if (online && totalPaise < 100) throw new AppError(409, 'Online payment needs an order of at least Rs 1.');
 
       // ---- writes (buffered, applied after reads) ----
       for (const l of lines) {
@@ -140,7 +150,10 @@ export class CustomerOrderService {
         },
         status: 'pending',
         paymentMethod: body.paymentMethod,
-        paymentStatus: 'pending', // cash on delivery: collected by the driver, not tracked online
+        // Cash on delivery is collected by the driver. Online orders stay hidden from the shop and
+        // keep their stock reserved only until they are paid or the hold runs out.
+        paymentStatus: online ? 'awaiting_payment' : 'pending',
+        ...(online ? { paymentExpiresAt: new Date(now.getTime() + PAYMENT_HOLD_MINUTES * 60_000) } : {}),
         createdAt: now,
         updatedAt: now,
       };
@@ -173,18 +186,25 @@ export class CustomerOrderService {
 
   /** Customer cancel: only while `pending`; stock goes back in the same transaction. */
   async cancelOrder(uid: string, orderId: string): Promise<CustomerOrderView> {
-    return this.store.runTransaction(async (tx: CheckoutTx) => {
+    let wasAwaitingPayment = false;
+    const view = await this.store.runTransaction(async (tx: CheckoutTx) => {
+      wasAwaitingPayment = false;
       const raw = await tx.get('orders', orderId);
       if (!raw || raw.customerId !== uid) throw new AppError(404, 'Order not found');
 
       const status = orderFulfillmentStatusSchema.safeParse(raw.status);
       if (!status.success) throw new AppError(409, 'Order is in an unknown state');
       if (status.data === 'cancelled') return this.toView({ ...raw, orderId }); // idempotent
+      if (raw.paymentMethod === 'online' && raw.paymentStatus === 'paid') {
+        // Refunds are not automated yet; cancelling would leave the money unrecorded.
+        throw new AppError(409, 'This order is already paid, so it cannot be cancelled in the app. Please contact support.');
+      }
       if (!canTransition(status.data, 'cancelled') || status.data !== 'pending') {
         throw new AppError(409, 'This order can no longer be cancelled');
       }
       assertTransition(status.data, 'cancelled');
 
+      wasAwaitingPayment = raw.paymentStatus === 'awaiting_payment';
       const shopId = String(raw.shopId);
       const now = this.now();
       await restoreStock(tx, shopId, Array.isArray(raw.items) ? (raw.items as Doc[]) : [], now);
@@ -193,6 +213,7 @@ export class CustomerOrderService {
         status: 'cancelled' satisfies OrderFulfillmentStatus,
         cancelledAt: now,
         cancellationReason: 'customer_cancelled',
+        ...(raw.paymentStatus === 'awaiting_payment' ? { paymentStatus: 'cancelled' } : {}),
         updatedAt: now,
       };
       tx.set('orders', orderId, updated);
@@ -203,6 +224,9 @@ export class CustomerOrderService {
       );
       return this.toView({ ...updated, orderId });
     });
+    // Stop an unpaid gateway order from being paid after the customer cancelled (best effort).
+    if (wasAwaitingPayment && this.gateway) void this.gateway.terminateOrder(gatewayOrderIdFor(orderId));
+    return view;
   }
 
   private toView(raw: Doc): CustomerOrderView {
@@ -242,6 +266,7 @@ export class CustomerOrderService {
         totalPaise: typeof p.total === 'number' ? p.total : subtotalPaise + deliveryFeePaise + platformFeePaise,
       },
       createdAt: toIso(raw.createdAt),
+      paymentExpiresAt: raw.paymentStatus === 'awaiting_payment' ? toIso(raw.paymentExpiresAt) : null,
     };
   }
 }

@@ -35,7 +35,7 @@ export const placeOrderBodySchema = z
     clientRequestId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
     shopId: z.string().min(1),
     addressId: z.string().min(1),
-    paymentMethod: z.literal('cod'),
+    paymentMethod: z.enum(['cod', 'online']),
     items: z
       .array(z.object({ productId: z.string().min(1), quantity: z.number().int().min(1).max(50) }).strict())
       .min(1)
@@ -84,4 +84,6 @@ export interface CustomerOrderView {
   delivery: { label: string; fullAddress: string; phoneNumber: string };
   pricing: { subtotalPaise: number; deliveryFeePaise: number; platformFeePaise: number; totalPaise: number };
   createdAt: string | null;
+  /** Online orders only: the unpaid order is cancelled (stock released) after this time. */
+  paymentExpiresAt: string | null;
 }

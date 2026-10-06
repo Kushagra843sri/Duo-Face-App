@@ -51,6 +51,9 @@ export class FakeCustomerStore implements CustomerStore {
   async listOrdersByCustomer(uid: string) {
     return this.all('orders').filter(([, d]) => d.customerId === uid).map(([id, d]) => ({ ...d, orderId: id }));
   }
+  async listAwaitingPaymentOrders() {
+    return this.all('orders').filter(([, d]) => d.paymentStatus === 'awaiting_payment').map(([id, d]) => ({ ...d, orderId: id }));
+  }
   async getOrder(id: string) {
     const d = this.read('orders', id);
     return d ? { ...d, orderId: id } : null;
