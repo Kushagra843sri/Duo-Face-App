@@ -83,3 +83,12 @@ Firestore Spark (50k reads / 20k writes per day), FCM, Cloudflare R2, Upstash Re
 - **Money:** existing order fields stay rupees (merchant side reads them); exact integer `pricingPaise` / `pricePaise` fields are written beside them. Fees are zero via `computeFees` (single seam, owner decision).
 - **Products are sellable only with an active `duo_face_inventory` record** (quantity − reserved > 0).
 - **Not verified:** nothing has run against real Firestore (only in-memory fakes with serialized transactions); real transaction contention, indexes and Firestore security rules are untested. Rules must deny client writes to `orders`, `duo_face_inventory`, `order_events`.
+
+## C2 implementation notes (2026-10-06)
+
+- **`customer/`** Expo app (Expo Router, NativeWind, same design system as `app/` with an orange accent). Screens: sign-in, shops, shop products, cart, checkout (address + cash on delivery), order status (progress, cancel while pending, 15 s polling), order history, profile, saved addresses, address form (typed or GPS-assisted).
+- **Sign-in is email + password**, not phone OTP: the Firebase JS SDK cannot do phone verification on iOS/Android (see decision 017), email/password works on every platform today, is free and needs no dev build. The server only needs a verified Firebase uid, so switching to phone later changes only `customer/lib/authService.ts` and the sign-in screen. **This departs from the phone-OTP sign-in assumed earlier; revisit with the owner.**
+- Cart is device-local (AsyncStorage), one shop at a time, re-priced by the server at checkout. Each checkout attempt carries a `clientRequestId`, so a retry after a network drop returns the same order.
+- Money is integer paise end to end; `lib/money.ts` is the only formatter.
+- **Verified:** typecheck, lint, web bundle export, and a click-through in the browser in dev preview mode (sample data): shops → products → add/steppers → cart persisted across a reload → checkout → place order → order screen → cancel → orders list → addresses (+ validation) → sign out redirects to sign-in. **Not verified:** real Firebase sign-in, talking to the real server, iOS/Android devices, GPS address fill, dark mode visuals (screenshots were unavailable).
+- Not done yet (C3): live driver tracking map, push notifications, delivery-code display, Cashfree online payment (C4).
