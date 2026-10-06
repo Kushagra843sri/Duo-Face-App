@@ -5,6 +5,7 @@ import type { FirebaseIdentityVerifier } from '../../integrations/firebase/Fireb
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { authenticateFirebase } from '../../middleware/authenticate';
 import { requireRole } from '../../middleware/authorize';
+import { validateBody } from '../../middleware/validateBody';
 import { requireActiveMerchantShop } from '../../middleware/requireActiveMerchantShop';
 import { resolveRole } from '../../middleware/resolveRole';
 import { DuoFaceShopService } from '../../services/duoFaceShopService';
@@ -13,16 +14,15 @@ import { MerchantOrderService } from '../../services/merchantOrderService';
 import { DuoFaceRoleResolver } from '../../services/roleResolver';
 import type { RoleResolver } from '../../services/roleResolver';
 import type { AuthenticatedRequest } from '../../types/auth';
+import { merchantStatusBodySchema } from '../../types/merchantOrder';
+import type { MerchantStatusTarget } from '../../types/merchantOrder';
 
 /**
  * shopId/customerAppShopId always come from req.shop (verified + active +
  * linked, resolved server-side) — never from the client. No route here
  * has a :shopId segment, and no body/query field is ever read for it.
  *
- * PATCH /merchant/orders/:orderId/status is intentionally not implemented:
- * no reusable Customer App order status-transition mechanism exists (see
- * docs/decisions/011-merchant-order-boundary.md) — inventing one was
- * explicitly out of scope for this phase.
+ * PATCH /:orderId/status moves the order through orderState (decision 031).
  */
 export function createMerchantOrdersRouter(
   verifier: FirebaseIdentityVerifier = new FirebaseAuthService(),
@@ -63,6 +63,15 @@ export function createMerchantOrdersRouter(
       }
       const assignments = await assignmentService.latestAssignmentsByOrder(req.shop!);
       res.json({ ...order, deliveryAssignment: assignments.get(order.orderId) ?? null });
+    })
+  );
+
+  router.patch(
+    '/:orderId/status',
+    ...guard,
+    validateBody(merchantStatusBodySchema),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      res.json(await orderService.updateStatus(req.shop!, req.params.orderId, (req.body as { status: MerchantStatusTarget }).status));
     })
   );
 

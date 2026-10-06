@@ -1,6 +1,7 @@
 import type { DeliveryAssignment } from '../types/deliveryAssignment';
 import { CustomerOrderSyncService } from './customerOrderSyncService';
 import { NotificationService } from './notificationService';
+import type { OrderStatusService } from './orderStatusService';
 
 /**
  * Side effects of committed assignment transitions. Every method is
@@ -57,7 +58,9 @@ export const deliveryLifecycleEffectsHub = new DeliveryLifecycleEffectsHub();
 export class DeliveryLifecycleEffectsService implements DeliveryLifecycleEffects {
   constructor(
     private readonly sync: CustomerOrderSyncService,
-    private readonly notifications: NotificationService
+    private readonly notifications: NotificationService,
+    /** When set, a pickup also moves the order to out_for_delivery (decision 031). */
+    private readonly orderStatus?: OrderStatusService
   ) {}
 
   onAssigned(a: DeliveryAssignment) {
@@ -68,8 +71,15 @@ export class DeliveryLifecycleEffectsService implements DeliveryLifecycleEffects
     return this.notifications.notify('delivery_accepted', a).then(() => undefined);
   }
 
-  onPickedUp(a: DeliveryAssignment) {
-    return this.notifications.notify('driver_picked_up', a).then(() => undefined);
+  async onPickedUp(a: DeliveryAssignment): Promise<void> {
+    if (this.orderStatus) {
+      try {
+        await this.orderStatus.markOutForDelivery(a.orderId, a.customerAppShopId, { type: 'driver', id: a.driverId });
+      } catch {
+        console.warn(`DeliveryLifecycleEffects: could not mark order ${a.orderId} out for delivery`);
+      }
+    }
+    await this.notifications.notify('driver_picked_up', a);
   }
 
   async onDelivered(a: DeliveryAssignment): Promise<void> {

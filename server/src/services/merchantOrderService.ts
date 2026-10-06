@@ -7,6 +7,8 @@ import { customerAppOrderSnapshotSchema } from '../types/customerAppOrder';
 import type { CustomerAppOrderSnapshot } from '../types/customerAppOrder';
 import type { DuoFaceShop } from '../types/duoFaceShop';
 import type { MerchantOrderDetail, MerchantOrderSummary } from '../types/merchantOrder';
+import { OrderStatusService } from './orderStatusService';
+import type { MerchantStatusTarget } from '../types/merchantOrder';
 
 function toIsoString(value: unknown): string | null {
   if (value instanceof Date) return value.toISOString();
@@ -29,8 +31,16 @@ function toSummary(order: CustomerAppOrderSnapshot, createdAt: string): Merchant
 export class MerchantOrderService {
   constructor(
     private readonly orderProvider: CustomerAppOrderProvider = new FirestoreCustomerAppOrderProvider(),
-    private readonly shopProvider: CustomerAppShopProvider = new FirestoreCustomerAppShopProvider()
+    private readonly shopProvider: CustomerAppShopProvider = new FirestoreCustomerAppShopProvider(),
+    private readonly statusService: OrderStatusService = new OrderStatusService()
   ) {}
+
+  /** Merchant moves its own shop's order forward (or rejects it). Allowed moves are decided by orderState. */
+  async updateStatus(shop: DuoFaceShop, orderId: string, to: MerchantStatusTarget): Promise<{ orderId: string; status: string }> {
+    const customerAppShopId = await this.requireLinkedCustomerAppShopId(shop);
+    const status = await this.statusService.transition(orderId, customerAppShopId, to, { type: 'merchant', id: shop.shopId });
+    return { orderId, status };
+  }
 
   /**
    * Same unlinked/broken-link boundary as

@@ -7,6 +7,7 @@ import { orderFulfillmentStatusSchema } from '../types/customerAppOrder';
 import type { OrderFulfillmentStatus } from '../types/customerAppOrder';
 import { computeFees, paiseToRupees, rupeesToPaise } from './money';
 import { assertTransition, buildOrderEvent, canTransition } from './orderState';
+import { restoreStock } from './orderStatusService';
 
 type Doc = Record<string, unknown>;
 
@@ -185,26 +186,8 @@ export class CustomerOrderService {
       assertTransition(status.data, 'cancelled');
 
       const shopId = String(raw.shopId);
-      const items = Array.isArray(raw.items) ? (raw.items as Doc[]) : [];
-      const inventories: { productId: string; qty: number; doc: Doc | null }[] = [];
-      for (const item of items) {
-        const productId = String(item.productId);
-        inventories.push({
-          productId,
-          qty: Number(item.quantity),
-          doc: await tx.get(INVENTORY, buildInventoryId(shopId, productId)),
-        });
-      }
-
       const now = this.now();
-      for (const inv of inventories) {
-        if (!inv.doc) continue; // inventory record was removed meanwhile: nothing to restore into
-        tx.set(INVENTORY, buildInventoryId(shopId, inv.productId), {
-          ...inv.doc,
-          quantity: Number(inv.doc.quantity) + inv.qty,
-          updatedAt: now,
-        });
-      }
+      await restoreStock(tx, shopId, Array.isArray(raw.items) ? (raw.items as Doc[]) : [], now);
       const updated: Doc = {
         ...raw,
         status: 'cancelled' satisfies OrderFulfillmentStatus,

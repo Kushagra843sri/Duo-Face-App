@@ -74,3 +74,12 @@ Firestore Spark (50k reads / 20k writes per day), FCM, Cloudflare R2, Upstash Re
 - Real Firebase project and service account (see `CUSTOMER_APP_SETUP_RUNBOOK.md`) are still needed before anything runs against real infrastructure.
 - Delivery fee and platform fee rules for new orders are undefined; C1 needs the owner's numbers (flat fee vs distance-based).
 - Inventory quantity model fields are designed in C1 (extends 003).
+
+## C1 / C1b implementation notes (2026-10-06)
+
+- **Done (server):** customer catalog, addresses, checkout (COD), cancel; `services/orderState.ts` (allowed-transition map + `order_events`); `services/orderStatusService.ts` (transactional status writes shared by merchant and delivery events, stock restored on cancel/reject).
+- **Merchant status route:** `PATCH /merchant/orders/:orderId/status` with `confirmed | rejected | preparing | ready_for_pickup`. Cross-shop orders return 404.
+- **Driver pickup:** `DeliveryLifecycleEffectsService.onPickedUp` walks the order forward to `out_for_delivery` (one `order_events` row per step, actor = driver), which the existing delivered-sync requires. Dispatch is not gated on order status, so a pickup can precede the merchant's updates; the walk keeps the transition map intact. A failure here is logged and never blocks the driver or the notification.
+- **Money:** existing order fields stay rupees (merchant side reads them); exact integer `pricingPaise` / `pricePaise` fields are written beside them. Fees are zero via `computeFees` (single seam, owner decision).
+- **Products are sellable only with an active `duo_face_inventory` record** (quantity − reserved > 0).
+- **Not verified:** nothing has run against real Firestore (only in-memory fakes with serialized transactions); real transaction contention, indexes and Firestore security rules are untested. Rules must deny client writes to `orders`, `duo_face_inventory`, `order_events`.

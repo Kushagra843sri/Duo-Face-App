@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import type { OrderFulfillmentStatus } from './customerAppOrder';
 import type { MerchantOrderDeliveryAssignment } from './merchantDelivery';
 
@@ -22,3 +24,7 @@ export interface MerchantOrderDetail extends MerchantOrderSummary {
   delivery: { label: string; fullAddress: string; phoneNumber: string };
   paymentStatus: string;
 }
+
+/** What a merchant may set. Pickup/delivery are driver events; cancel is the customer's. */
+export const merchantStatusBodySchema = z.object({ status: z.enum(['confirmed', 'rejected', 'preparing', 'ready_for_pickup']) }).strict();
+export type MerchantStatusTarget = z.infer<typeof merchantStatusBodySchema>['status'];

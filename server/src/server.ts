@@ -8,6 +8,7 @@ import { FirebaseAuthService } from './integrations/firebase/FirebaseAuthService
 import { attachCustomerTrackingGateway } from './realtime/customerTrackingGateway';
 import { CustomerOrderSyncService } from './services/customerOrderSyncService';
 import { DeliveryAssignmentService } from './services/deliveryAssignmentService';
+import { OrderStatusService } from './services/orderStatusService';
 import { deliveryLifecycleEffectsHub, DeliveryLifecycleEffectsService } from './services/deliveryLifecycleEffects';
 import { deliveryCodeTriggerHub } from './services/deliveryCodeTrigger';
 import { DeliveryCodeService } from './services/deliveryCodeService';
@@ -30,7 +31,7 @@ const orderSync = new CustomerOrderSyncService(
   undefined,
   async (orderId, shopId) => (await lookups.getCurrentForOrder(orderId, shopId))?.status === 'delivered'
 );
-deliveryLifecycleEffectsHub.install(new DeliveryLifecycleEffectsService(orderSync, new NotificationService()));
+deliveryLifecycleEffectsHub.install(new DeliveryLifecycleEffectsService(orderSync, new NotificationService(), new OrderStatusService()));
 
 // Nearest-driver re-offer after a rejection / expired offer (docs/decisions/026).
 dispatchTriggerHub.install(new DriverDispatchService());
