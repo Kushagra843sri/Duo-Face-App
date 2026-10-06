@@ -7,6 +7,7 @@ import { asyncHandler } from '../../middleware/asyncHandler';
 import { authenticateFirebase } from '../../middleware/authenticate';
 import { createRateLimiter } from '../../middleware/rateLimit';
 import { validateBody } from '../../middleware/validateBody';
+import { CustomerDeliveryCodeService } from '../../services/customerDeliveryCodeService';
 import { CustomerOrderService } from '../../services/customerOrderService';
 import type { AuthenticatedRequest } from '../../types/auth';
 import { placeOrderBodySchema } from '../../types/customerOrder';
@@ -30,7 +31,8 @@ export function createCustomerOrdersRouter(
   readLimiter: RequestHandler = createRateLimiter({
     ...CUSTOMER_ORDER_READ_RATE_LIMIT,
     keyFor: (req) => req.identity?.firebaseUid,
-  }) as RequestHandler
+  }) as RequestHandler,
+  deliveryCodeService: CustomerDeliveryCodeService = new CustomerDeliveryCodeService()
 ) {
   const router = Router();
   router.use(authenticateFirebase(verifier));
@@ -58,6 +60,14 @@ export function createCustomerOrdersRouter(
     readLimiter,
     asyncHandler(async (req: AuthenticatedRequest, res) => {
       res.json({ order: await service.getOrder(req.identity!.firebaseUid, req.params.orderId) });
+    })
+  );
+
+  router.get(
+    '/:orderId/delivery-code',
+    readLimiter,
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      res.json(await deliveryCodeService.getCode(req.identity!.firebaseUid, req.params.orderId));
     })
   );
 

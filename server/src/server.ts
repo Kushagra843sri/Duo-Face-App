@@ -11,6 +11,7 @@ import { DeliveryAssignmentService } from './services/deliveryAssignmentService'
 import { OrderStatusService } from './services/orderStatusService';
 import { deliveryLifecycleEffectsHub, DeliveryLifecycleEffectsService } from './services/deliveryLifecycleEffects';
 import { deliveryCodeTriggerHub } from './services/deliveryCodeTrigger';
+import { FirestoreDeliveryCodeStore } from './integrations/firebase/FirestoreDeliveryCodeStore';
 import { DeliveryCodeService } from './services/deliveryCodeService';
 import { DriverDispatchService } from './services/driverDispatchService';
 import { dispatchTriggerHub } from './services/dispatchTrigger';
@@ -37,7 +38,7 @@ deliveryLifecycleEffectsHub.install(new DeliveryLifecycleEffectsService(orderSyn
 dispatchTriggerHub.install(new DriverDispatchService());
 
 // Sends the customer their delivery code (SMS) after a pickup commits (docs/decisions/028).
-deliveryCodeTriggerHub.install(new DeliveryCodeService());
+deliveryCodeTriggerHub.install(new DeliveryCodeService(undefined, undefined, new FirestoreDeliveryCodeStore()));
 
 httpServer.listen(env.PORT, () => {
   console.log(`Duo-Face server listening on port ${env.PORT} (${env.NODE_ENV})`);
