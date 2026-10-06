@@ -1,6 +1,8 @@
 import type { DeliveryAssignment } from '../types/deliveryAssignment';
 import { CustomerOrderSyncService } from './customerOrderSyncService';
 import { NotificationService } from './notificationService';
+import { appEvents } from './appEvents';
+import type { AppEvents } from './appEvents';
 import type { OrderStatusService } from './orderStatusService';
 
 /**
@@ -60,18 +62,23 @@ export class DeliveryLifecycleEffectsService implements DeliveryLifecycleEffects
     private readonly sync: CustomerOrderSyncService,
     private readonly notifications: NotificationService,
     /** When set, a pickup also moves the order to out_for_delivery (decision 031). */
-    private readonly orderStatus?: OrderStatusService
+    private readonly orderStatus?: OrderStatusService,
+    /** Tells the driver / shop (the customer's own messages are NotificationService's). */
+    private readonly events: AppEvents = appEvents
   ) {}
 
   onAssigned(a: DeliveryAssignment) {
+    void this.events.driverOffered(a);
     return this.notifications.notify('delivery_assigned', a).then(() => undefined);
   }
 
   onAccepted(a: DeliveryAssignment) {
+    void this.events.driverAccepted(a);
     return this.notifications.notify('delivery_accepted', a).then(() => undefined);
   }
 
   async onPickedUp(a: DeliveryAssignment): Promise<void> {
+    void this.events.driverPickedUp(a);
     if (this.orderStatus) {
       try {
         await this.orderStatus.markOutForDelivery(a.orderId, a.customerAppShopId, { type: 'driver', id: a.driverId });

@@ -9,6 +9,7 @@ import type {
 } from '../../src/integrations/payments/CashfreeGateway';
 import { RefundService } from '../../src/services/refundService';
 import { FakeCustomerStore, NOW } from '../helpers/customerFixtures';
+import { RecordingEvents } from '../helpers/recordingEvents';
 
 /** Behaves like Cashfree for refunds: a refund id is unique, repeating it returns the first refund. */
 class FakeRefundGateway implements PaymentGateway {
@@ -54,7 +55,8 @@ function setup() {
   clock.t = NOW.getTime();
   const store = new FakeCustomerStore();
   const gateway = new FakeRefundGateway();
-  return { store, gateway, refunds: new RefundService(gateway, store, now) };
+  const events = new RecordingEvents();
+  return { store, gateway, events, refunds: new RefundService(gateway, store, now, events) };
 }
 
 /** An online order that was paid and then rejected by the shop. */
@@ -251,5 +253,49 @@ describe('refunds that take time or fail', () => {
     gateway.getError = new PaymentGatewayError('transient');
     expect(await refunds.sweep()).toBe(0);
     expect(order(store).refund).toMatchObject({ status: 'processing' });
+  });
+});
+
+describe('refund notifications', () => {
+  it('tells the customer when the refund starts and again when it completes, each once', async () => {
+    const { store, refunds, events } = setup();
+    seedRefundDue(store);
+    await refunds.startRefund('admin-1', 'ord_1');
+    expect(events.calls).toEqual(['refundStarted:ord_1', 'refundCompleted:ord_1']);
+  });
+
+  it('a slow refund: "started" now, "completed" only when it really completes, never twice', async () => {
+    const { store, gateway, refunds, events } = setup();
+    seedRefundDue(store);
+    gateway.nextStatus = 'PENDING';
+    await refunds.startRefund('admin-1', 'ord_1');
+    await refunds.refresh('admin-1', 'ord_1'); // still pending
+    expect(events.calls).toEqual(['refundStarted:ord_1']);
+
+    [...gateway.refunds.values()][0].status = 'SUCCESS';
+    await refunds.sweep();
+    await refunds.refresh('admin-1', 'ord_1'); // already done
+    expect(events.calls).toEqual(['refundStarted:ord_1', 'refundCompleted:ord_1']);
+  });
+
+  it('a second click on a refund already in progress does not announce "started" again', async () => {
+    const { store, gateway, refunds, events } = setup();
+    seedRefundDue(store);
+    gateway.nextStatus = 'PENDING';
+    await refunds.startRefund('admin-1', 'ord_1');
+    await refunds.startRefund('admin-1', 'ord_1');
+    expect(events.calls).toEqual(['refundStarted:ord_1']);
+  });
+
+  it('says nothing when Cashfree refuses the refund; announces it once a retry is accepted', async () => {
+    const { store, gateway, refunds, events } = setup();
+    seedRefundDue(store);
+    gateway.nextStatus = 'REJECTED';
+    await refunds.startRefund('admin-1', 'ord_1');
+    expect(events.calls).toEqual([]);
+
+    gateway.nextStatus = 'SUCCESS';
+    await refunds.startRefund('admin-1', 'ord_1');
+    expect(events.calls).toEqual(['refundStarted:ord_1', 'refundCompleted:ord_1']);
   });
 });

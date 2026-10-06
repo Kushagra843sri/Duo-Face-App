@@ -5,6 +5,8 @@ import type { GatewayOrder, PaymentGateway } from '../integrations/payments/Cash
 import { AppError } from '../middleware/errorHandler';
 import type { CustomerOrderView } from '../types/customerOrder';
 import type { CustomerOrderService } from './customerOrderService';
+import { appEvents } from './appEvents';
+import type { AppEvents } from './appEvents';
 import { buildOrderEvent } from './orderState';
 import { restoreStock } from './orderStatusService';
 
@@ -37,7 +39,8 @@ export class PaymentService {
     private readonly gateway: PaymentGateway | null,
     private readonly publicBaseUrl: string | null,
     private readonly store: CustomerStore = new FirestoreCustomerStore(),
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly events: AppEvents = appEvents
   ) {}
 
   get enabled(): boolean {
@@ -174,7 +177,7 @@ export class PaymentService {
     const holdOver = !!expiresAt && this.now().getTime() >= expiresAt.getTime() + EXPIRY_GRACE_MS;
     const gatewayDone = g !== null && (g.status === 'EXPIRED' || g.status === 'TERMINATED');
     if (holdOver || gatewayDone) {
-      await this.cancelUnpaid(orderId);
+      if (await this.cancelUnpaid(orderId)) void this.events.paymentExpired(orderId);
       void gateway.terminateOrder(gatewayOrderId);
       return 'expired';
     }
@@ -205,12 +208,15 @@ export class PaymentService {
    * recorded for refund instead of reviving the order.
    */
   async applyGatewayResult(gatewayOrderId: string, paidAmountPaise: number): Promise<ApplyResult> {
-    return this.store.runTransaction(async (tx) => {
+    let settledOrderId: string | null = null;
+    const result = await this.store.runTransaction(async (tx) => {
+      settledOrderId = null;
       const payment = await tx.get(PAYMENTS_COLLECTION, gatewayOrderId);
       if (!payment) return 'unknown_payment' as ApplyResult;
       if (payment.status === 'paid') return 'already_paid' as ApplyResult;
 
       const orderId = String(payment.orderId);
+      settledOrderId = orderId;
       const order = await tx.get('orders', orderId);
       if (!order) return 'unknown_payment' as ApplyResult;
 
@@ -238,13 +244,19 @@ export class PaymentService {
       console.warn(`PaymentService: order ${orderId} was paid after it was ${String(order.status)}; refund required`);
       return 'needs_refund' as ApplyResult;
     });
+    // Tell people only after the money change is saved (each notification is sent at most once per order).
+    if (settledOrderId) {
+      if (result === 'paid') void this.events.paymentConfirmed(settledOrderId);
+      if (result === 'needs_refund') void this.events.refundDue(settledOrderId);
+    }
+    return result;
   }
 
   /** Cancel an unpaid online order (hold ran out / gateway order expired) and release its stock. */
-  private async cancelUnpaid(orderId: string): Promise<void> {
-    await this.store.runTransaction(async (tx) => {
+  private async cancelUnpaid(orderId: string): Promise<boolean> {
+    return this.store.runTransaction(async (tx) => {
       const order = await tx.get('orders', orderId);
-      if (!order || order.paymentStatus !== 'awaiting_payment' || order.status !== 'pending') return;
+      if (!order || order.paymentStatus !== 'awaiting_payment' || order.status !== 'pending') return false;
       const payment = await tx.get(PAYMENTS_COLLECTION, gatewayOrderIdFor(orderId));
       const at = this.now();
       await restoreStock(tx, String(order.shopId), Array.isArray(order.items) ? (order.items as Doc[]) : [], at);
@@ -264,6 +276,7 @@ export class PaymentService {
         `${orderId}__pending_cancelled`,
         { ...buildOrderEvent(orderId, String(order.shopId), 'pending', 'cancelled', { type: 'system', id: 'payment_expiry' }, at) }
       );
+      return true;
     });
   }
 

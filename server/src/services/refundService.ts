@@ -3,12 +3,17 @@ import type { CustomerStore } from '../integrations/firebase/FirestoreCustomerSt
 import { gatewayOrderIdFor, idempotencyKeyFor, PaymentGatewayError, refundIdFor } from '../integrations/payments/CashfreeGateway';
 import type { GatewayRefund, PaymentGateway } from '../integrations/payments/CashfreeGateway';
 import { AppError } from '../middleware/errorHandler';
+import { appEvents } from './appEvents';
+import type { AppEvents } from './appEvents';
 import { buildOrderEvent } from './orderState';
 import { PAYMENTS_COLLECTION } from './paymentService';
 
 type Doc = Record<string, unknown>;
 
 export type RefundState = 'due' | 'processing' | 'failed' | 'refunded';
+
+/** Where a refund stands after asking Cashfree. */
+type Settled = 'completed' | 'processing' | 'failed';
 
 export interface RefundView {
   orderId: string;
@@ -52,7 +57,8 @@ export class RefundService {
   constructor(
     private readonly gateway: PaymentGateway | null,
     private readonly store: CustomerStore = new FirestoreCustomerStore(),
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly events: AppEvents = appEvents
   ) {}
 
   private requireGateway(): PaymentGateway {
@@ -118,7 +124,11 @@ export class RefundService {
       return { refundId, amountPaise, fresh: true };
     });
 
-    await this.settle(orderId, plan.refundId, plan.amountPaise, adminUid);
+    const outcome = await this.settle(orderId, plan.refundId, plan.amountPaise, adminUid);
+    // Told once each, after the change is saved: "started" once Cashfree has accepted it (not if it was refused),
+    // "completed" when Cashfree confirms.
+    if (plan.fresh && outcome !== 'failed') void this.events.refundStarted(orderId);
+    if (outcome === 'completed') void this.events.refundCompleted(orderId);
     return this.get(orderId);
   }
 
@@ -128,7 +138,9 @@ export class RefundService {
     const order = await this.store.getOrder(orderId);
     if (!order || !this.isRefundOrder(order)) throw new AppError(404, 'No refund found for this order.');
     const refund = order.refund as Doc | undefined;
-    if (refund?.status === 'processing') await this.settle(orderId, String(refund.refundId), Number(refund.amountPaise), adminUid);
+    if (refund?.status === 'processing') {
+      if ((await this.settle(orderId, String(refund.refundId), Number(refund.amountPaise), adminUid)) === 'completed') void this.events.refundCompleted(orderId);
+    }
     return this.get(orderId);
   }
 
@@ -140,7 +152,9 @@ export class RefundService {
       const refund = order.refund as Doc | undefined;
       if (refund?.status !== 'processing') continue;
       try {
-        await this.settle(String(order.orderId), String(refund.refundId), Number(refund.amountPaise), 'system');
+        if ((await this.settle(String(order.orderId), String(refund.refundId), Number(refund.amountPaise), 'system')) === 'completed') {
+          void this.events.refundCompleted(String(order.orderId));
+        }
         const after = await this.store.getOrder(String(order.orderId));
         if ((after?.refund as Doc | undefined)?.status !== 'processing') finished += 1;
       } catch {
@@ -151,7 +165,7 @@ export class RefundService {
   }
 
   /** Look the refund up at Cashfree (creating it only if it truly does not exist yet), then record the result. */
-  private async settle(orderId: string, refundId: string, amountPaise: number, actorId: string): Promise<void> {
+  private async settle(orderId: string, refundId: string, amountPaise: number, actorId: string): Promise<Settled> {
     const gateway = this.requireGateway();
     const gatewayOrderId = gatewayOrderIdFor(orderId);
     let result: GatewayRefund;
@@ -178,15 +192,16 @@ export class RefundService {
     if (result.amountPaise !== amountPaise && result.status === 'SUCCESS') {
       console.warn(`RefundService: refund amount mismatch on order ${orderId}`);
     }
-    await this.record(orderId, refundId, result.status, actorId);
+    return this.record(orderId, refundId, result.status, actorId);
   }
 
   /** Write the outcome onto the order and payment record. Ignores a result for an outdated attempt. */
-  private async record(orderId: string, refundId: string, status: GatewayRefund['status'], actorId: string): Promise<void> {
-    await this.store.runTransaction(async (tx) => {
+  /** What this call did to the refund (`processing` also covers "nothing to change"). */
+  private async record(orderId: string, refundId: string, status: GatewayRefund['status'], actorId: string): Promise<Settled> {
+    return this.store.runTransaction(async (tx) => {
       const order = await tx.get('orders', orderId);
       const refund = order?.refund as Doc | undefined;
-      if (!order || !refund || refund.refundId !== refundId || refund.status !== 'processing') return;
+      if (!order || !refund || refund.refundId !== refundId || refund.status !== 'processing') return 'processing' as Settled;
       const gatewayOrderId = gatewayOrderIdFor(orderId);
       const payment = await tx.get(PAYMENTS_COLLECTION, gatewayOrderId);
       const at = this.now();
@@ -201,6 +216,7 @@ export class RefundService {
           note: 'refund_completed',
           refundId,
         });
+        return 'completed' as Settled;
       } else if (status === 'CANCELLED' || status === 'REJECTED') {
         tx.set('orders', orderId, { ...order, refund: { ...refund, status: 'failed', processedAt: at }, updatedAt: at });
         if (payment) tx.set(PAYMENTS_COLLECTION, gatewayOrderId, { ...payment, status: 'refund_failed', updatedAt: at });
@@ -209,8 +225,10 @@ export class RefundService {
           note: 'refund_failed',
           refundId,
         });
+        return 'failed' as Settled;
       }
       // PENDING / PENDING_APPROVAL / ONHOLD / UNKNOWN: still in progress, nothing to write.
+      return 'processing' as Settled;
     });
   }
 

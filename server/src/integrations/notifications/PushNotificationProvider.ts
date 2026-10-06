@@ -1,11 +1,11 @@
-import type { NotificationType } from '../../types/notifications';
+import type { AppNotificationType } from '../../types/notifications';
 
 export interface PushMessage {
   token: string;
   title: string;
   body: string;
   /** Minimal by contract: no address, phone, payment, ids of people, or coordinates. */
-  data: { type: NotificationType; orderId: string };
+  data: { type: AppNotificationType; orderId?: string };
 }
 
 export type PushResult = 'sent' | 'invalid_token' | 'failed';

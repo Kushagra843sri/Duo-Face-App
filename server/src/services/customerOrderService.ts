@@ -10,6 +10,8 @@ import { gatewayOrderIdFor } from '../integrations/payments/CashfreeGateway';
 import type { PaymentGateway } from '../integrations/payments/CashfreeGateway';
 import { computeFees, paiseToRupees, rupeesToPaise } from './money';
 import { assertTransition, buildOrderEvent, canTransition } from './orderState';
+import { appEvents } from './appEvents';
+import type { AppEvents } from './appEvents';
 import { restoreStock } from './orderStatusService';
 
 type Doc = Record<string, unknown>;
@@ -40,7 +42,9 @@ export class CustomerOrderService {
     private readonly store: CustomerStore = new FirestoreCustomerStore(),
     private readonly now: () => Date = () => new Date(),
     /** Null = online payment is not configured: only cash on delivery can be ordered. */
-    private readonly gateway: PaymentGateway | null = null
+    private readonly gateway: PaymentGateway | null = null,
+    /** Tells people about it afterwards (no-op until the real server installs it). */
+    private readonly events: AppEvents = appEvents
   ) {}
 
   async placeOrder(uid: string, body: PlaceOrderBody): Promise<{ order: CustomerOrderView; created: boolean }> {
@@ -59,7 +63,7 @@ export class CustomerOrderService {
 
     const orderId = buildOrderId(uid, body.clientRequestId);
 
-    return this.store.runTransaction(async (tx) => {
+    const result = await this.store.runTransaction(async (tx) => {
       // ---- all reads first ----
       const existing = await tx.get('orders', orderId);
       if (existing) {
@@ -166,6 +170,9 @@ export class CustomerOrderService {
 
       return { order: this.toView({ ...order, orderId }), created: true };
     });
+    // Cash orders reach the shop now; online orders announce themselves once they are paid.
+    if (result.created && body.paymentMethod === 'cod') void this.events.orderPlaced(orderId);
+    return result;
   }
 
   async listOrders(uid: string): Promise<CustomerOrderView[]> {
@@ -187,8 +194,10 @@ export class CustomerOrderService {
   /** Customer cancel: only while `pending`; stock goes back in the same transaction. */
   async cancelOrder(uid: string, orderId: string): Promise<CustomerOrderView> {
     let wasAwaitingPayment = false;
+    let cancelledNow = false;
     const view = await this.store.runTransaction(async (tx: CheckoutTx) => {
       wasAwaitingPayment = false;
+      cancelledNow = false;
       const raw = await tx.get('orders', orderId);
       if (!raw || raw.customerId !== uid) throw new AppError(404, 'Order not found');
 
@@ -205,6 +214,7 @@ export class CustomerOrderService {
       assertTransition(status.data, 'cancelled');
 
       wasAwaitingPayment = raw.paymentStatus === 'awaiting_payment';
+      cancelledNow = true;
       const shopId = String(raw.shopId);
       const now = this.now();
       await restoreStock(tx, shopId, Array.isArray(raw.items) ? (raw.items as Doc[]) : [], now);
@@ -226,6 +236,8 @@ export class CustomerOrderService {
     });
     // Stop an unpaid gateway order from being paid after the customer cancelled (best effort).
     if (wasAwaitingPayment && this.gateway) void this.gateway.terminateOrder(gatewayOrderIdFor(orderId));
+    // The shop only knew about orders that were already visible to it (not unpaid online ones).
+    if (cancelledNow && !wasAwaitingPayment) void this.events.customerCancelled(orderId);
     return view;
   }
 

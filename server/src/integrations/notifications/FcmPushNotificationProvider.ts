@@ -24,7 +24,7 @@ export class FcmPushNotificationProvider implements PushNotificationProvider {
       messages.map((message) => ({
         token: message.token,
         notification: { title: message.title, body: message.body },
-        data: { type: message.data.type, orderId: message.data.orderId },
+        data: { type: message.data.type, ...(message.data.orderId ? { orderId: message.data.orderId } : {}) },
       }))
     );
 

@@ -13,6 +13,7 @@ import { createPayRouter } from './routes/pay';
 import { createCustomerConfigRouter } from './routes/customer/config';
 import { cashfreeConfig, customerOrderService, paymentService, refundService } from './paymentRuntime';
 import { createAdminRouter } from './routes/admin';
+import { createNotificationsRouter } from './routes/notifications';
 import { createCustomerAddressesRouter } from './routes/customer/addresses';
 import { createCustomerCatalogRouter } from './routes/customer/catalog';
 import { createCustomerOrdersRouter } from './routes/customer/orders';
@@ -65,6 +66,7 @@ app.use(
   '/customer/orders',
   createCustomerOrdersRouter(undefined, customerOrderService, undefined, undefined, undefined, paymentService)
 );
+app.use('/notifications', createNotificationsRouter());
 app.use('/admin', createAdminRouter(undefined, undefined, refundService));
 app.use('/pay', createPayRouter(cashfreeConfig?.env ?? 'sandbox'));
 app.use('/webhooks/cashfree', createCashfreeWebhookRouter(paymentService));

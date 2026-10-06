@@ -8,6 +8,8 @@ import type { DeliveryAssignment } from '../types/deliveryAssignment';
 import type { DriverLocationInput } from '../types/driverLocation';
 import type { LiveDriverLocation } from '../types/liveDriverLocation';
 import { DeliveryAssignmentService } from './deliveryAssignmentService';
+import { nearbyHub } from './driverNearby';
+import type { NearbyWatcher } from './driverNearby';
 import { DriverLocationService } from './driverLocationService';
 import { getLocationFreshness, LIVE_LOCATION_STALE_AFTER_MS } from './locationFreshness';
 import { isTrackingEligible } from './trackingPolicy';
@@ -42,7 +44,7 @@ export interface LiveLocationView {
  * fallback for the ping itself.
  */
 export class DriverTrackingService {
-  private readonly eligibleUntil = new Map<string, { until: number; orderId: string }>();
+  private readonly eligibleUntil = new Map<string, { until: number; orderId: string; status: string }>();
   private readonly lastSnapshotAt = new Map<string, number>();
 
   constructor(
@@ -50,7 +52,9 @@ export class DriverTrackingService {
     private readonly liveStore: LiveDriverLocationStore = createLiveDriverLocationStore(),
     private readonly durableLocations: DriverLocationService = new DriverLocationService(),
     private readonly now: () => number = Date.now,
-    private readonly events: DeliveryEventPublisher = deliveryEventHub
+    private readonly events: DeliveryEventPublisher = deliveryEventHub,
+    /** Tells the customer when their delivery partner is close (no-op until the real server installs it). */
+    private readonly nearby: NearbyWatcher = nearbyHub
   ) {}
 
   /**
@@ -80,19 +84,20 @@ export class DriverTrackingService {
       );
     }
 
-    this.eligibleUntil.set(cacheKey, { until: this.now() + ELIGIBILITY_CACHE_MS, orderId: assignment.orderId });
+    this.eligibleUntil.set(cacheKey, { until: this.now() + ELIGIBILITY_CACHE_MS, orderId: assignment.orderId, status: assignment.status });
     return assignment;
   }
 
-  /** @returns the orderId of the (authorized) assignment, for realtime fan-out. */
-  private async authorizeCached(driverId: string, assignmentId: string): Promise<string> {
+  /** @returns the orderId (for realtime fan-out) and status of the authorized assignment. */
+  private async authorizeCached(driverId: string, assignmentId: string): Promise<{ orderId: string; status: string }> {
     const cached = this.eligibleUntil.get(`${driverId}:${assignmentId}`);
-    if (cached !== undefined && cached.until > this.now()) return cached.orderId;
-    return (await this.authorize(driverId, assignmentId)).orderId;
+    if (cached !== undefined && cached.until > this.now()) return { orderId: cached.orderId, status: cached.status };
+    const assignment = await this.authorize(driverId, assignmentId);
+    return { orderId: assignment.orderId, status: assignment.status };
   }
 
   async publishLocation(driverId: string, assignmentId: string, input: DriverLocationInput): Promise<{ capturedAt: string }> {
-    const orderId = await this.authorizeCached(driverId, assignmentId);
+    const { orderId, status } = await this.authorizeCached(driverId, assignmentId);
 
     const capturedAt = new Date(this.now());
     const live: LiveDriverLocation = { driverId, assignmentId, ...input, capturedAt };
@@ -108,6 +113,11 @@ export class DriverTrackingService {
       type: 'driver_location',
       location: { latitude: input.latitude, longitude: input.longitude, capturedAt: capturedAt.toISOString() },
     });
+
+    // Only once the order is in the driver's hands is "nearby" meaningful. Fire-and-forget.
+    if (status === 'picked_up') {
+      void this.nearby.onPosition(orderId, { latitude: input.latitude, longitude: input.longitude, ...(input.accuracyMeters !== undefined ? { accuracyMeters: input.accuracyMeters } : {}) });
+    }
 
     await this.maybeSnapshot(driverId, input);
     return { capturedAt: capturedAt.toISOString() };

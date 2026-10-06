@@ -17,6 +17,8 @@ import { DriverDispatchService } from './services/driverDispatchService';
 import { dispatchTriggerHub } from './services/dispatchTrigger';
 import { NotificationService } from './services/notificationService';
 import { paymentService, refundService } from './paymentRuntime';
+import { appEvents, AppEventService } from './services/appEvents';
+import { DriverNearbyService, nearbyHub } from './services/driverNearby';
 
 const env = loadEnv();
 
@@ -34,6 +36,10 @@ const orderSync = new CustomerOrderSyncService(
   async (orderId, shopId) => (await lookups.getCurrentForOrder(orderId, shopId))?.status === 'delivered'
 );
 deliveryLifecycleEffectsHub.install(new DeliveryLifecycleEffectsService(orderSync, new NotificationService(), new OrderStatusService()));
+
+// Notifications to everyone involved (inbox + push). Installed only here: tests and the bare app send nothing.
+appEvents.install(new AppEventService());
+nearbyHub.install(new DriverNearbyService());
 
 // Nearest-driver re-offer after a rejection / expired offer (docs/decisions/026).
 dispatchTriggerHub.install(new DriverDispatchService());

@@ -53,3 +53,47 @@ export const notificationEventSchema = z.object({
   updatedAt: z.unknown(),
 });
 export type NotificationEvent = z.infer<typeof notificationEventSchema>;
+
+/**
+ * Every notification the system can send, to anyone. The first four are the
+ * original customer delivery events (NotificationService); the rest go
+ * through Notifier and are also kept in the recipient's in-app inbox.
+ */
+export const appNotificationTypeSchema = z.enum([
+  ...notificationTypeSchema.options,
+  // customer
+  'payment_confirmed',
+  'order_confirmed',
+  'order_rejected',
+  'order_cancelled_unpaid',
+  'driver_nearby',
+  'refund_started',
+  'refund_completed',
+  // merchant
+  'new_order',
+  'order_cancelled_by_customer',
+  'shop_driver_accepted',
+  'shop_driver_picked_up',
+  // driver
+  'new_delivery_offer',
+  // merchant + driver
+  'kyc_approved',
+  'kyc_rejected',
+  // admin
+  'admin_refund_due',
+  'admin_kyc_submitted',
+]);
+export type AppNotificationType = z.infer<typeof appNotificationTypeSchema>;
+
+export const INBOX_COLLECTION = 'duo_face_inbox';
+
+/** What an app shows in its inbox. No addresses, phones, amounts or coordinates, ever. */
+export interface InboxItemView {
+  id: string;
+  type: AppNotificationType;
+  title: string;
+  body: string;
+  orderId: string | null;
+  createdAt: string;
+  read: boolean;
+}

@@ -4,6 +4,8 @@ import { AppError } from '../middleware/errorHandler';
 import { orderFulfillmentStatusSchema } from '../types/customerAppOrder';
 import type { OrderFulfillmentStatus } from '../types/customerAppOrder';
 import { buildInventoryId } from '../types/inventoryItem';
+import { appEvents } from './appEvents';
+import type { AppEvents } from './appEvents';
 import { assertTransition, buildOrderEvent, InvalidOrderTransitionError } from './orderState';
 import type { OrderActor } from './orderState';
 
@@ -63,11 +65,16 @@ function parseStatus(raw: Doc): OrderFulfillmentStatus {
 export class OrderStatusService {
   constructor(
     private readonly store: CustomerStore = new FirestoreCustomerStore(),
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly events: AppEvents = appEvents
   ) {}
 
   async transition(orderId: string, shopId: string, to: OrderFulfillmentStatus, actor: OrderActor): Promise<OrderFulfillmentStatus> {
-    return this.store.runTransaction(async (tx) => {
+    let changed = false;
+    let refundDue = false;
+    const result = await this.store.runTransaction(async (tx) => {
+      changed = false;
+      refundDue = false;
       const raw = await this.loadOwned(tx, orderId, shopId);
       assertPaymentSettled(raw);
       const from = parseStatus(raw);
@@ -79,9 +86,16 @@ export class OrderStatusService {
         throw err;
       }
       const now = this.now();
-      await this.apply(tx, orderId, shopId, raw, [[from, to]], actor, now);
+      refundDue = await this.apply(tx, orderId, shopId, raw, [[from, to]], actor, now);
+      changed = true;
       return to;
     });
+    if (changed) {
+      if (to === 'confirmed') void this.events.orderConfirmed(orderId);
+      if (to === 'rejected') void this.events.orderRejected(orderId);
+      if (refundDue) void this.events.refundDue(orderId);
+    }
+    return result;
   }
 
   /**
@@ -124,7 +138,7 @@ export class OrderStatusService {
     steps: [OrderFulfillmentStatus, OrderFulfillmentStatus][],
     actor: OrderActor,
     now: Date
-  ): Promise<void> {
+  ): Promise<boolean> {
     const finalStatus = steps[steps.length - 1][1];
     const refundDue = RESTOCKING.includes(finalStatus) && raw.paymentMethod === 'online' && raw.paymentStatus === 'paid';
     if (RESTOCKING.includes(finalStatus)) {
@@ -143,5 +157,6 @@ export class OrderStatusService {
     for (const [from, to] of steps) {
       tx.set('order_events', `${orderId}__${from}_${to}`, { ...buildOrderEvent(orderId, shopId, from, to, actor, now) });
     }
+    return refundDue;
   }
 }
