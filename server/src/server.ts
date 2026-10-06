@@ -6,46 +6,16 @@ import { app } from './app';
 import { loadEnv } from './config/env';
 import { FirebaseAuthService } from './integrations/firebase/FirebaseAuthService';
 import { attachCustomerTrackingGateway } from './realtime/customerTrackingGateway';
-import { CustomerOrderSyncService } from './services/customerOrderSyncService';
-import { DeliveryAssignmentService } from './services/deliveryAssignmentService';
-import { OrderStatusService } from './services/orderStatusService';
-import { deliveryLifecycleEffectsHub, DeliveryLifecycleEffectsService } from './services/deliveryLifecycleEffects';
-import { deliveryCodeTriggerHub } from './services/deliveryCodeTrigger';
-import { FirestoreDeliveryCodeStore } from './integrations/firebase/FirestoreDeliveryCodeStore';
-import { DeliveryCodeService } from './services/deliveryCodeService';
-import { DriverDispatchService } from './services/driverDispatchService';
-import { dispatchTriggerHub } from './services/dispatchTrigger';
-import { NotificationService } from './services/notificationService';
 import { paymentService, refundService } from './paymentRuntime';
-import { appEvents, AppEventService } from './services/appEvents';
-import { DriverNearbyService, nearbyHub } from './services/driverNearby';
+import { installRuntime } from './runtime';
 
 const env = loadEnv();
 
 const httpServer = createServer(app);
 attachCustomerTrackingGateway(httpServer, { verifier: new FirebaseAuthService() });
 
-// Post-commit side effects (Customer App delivered-sync + customer pushes).
-// Installed only here, so tests and the bare `app` have no external side effects.
-const lookups = new DeliveryAssignmentService(); // its own effects default to the hub; only used for reads here
-const orderSync = new CustomerOrderSyncService(
-  undefined,
-  undefined,
-  undefined,
-  undefined,
-  async (orderId, shopId) => (await lookups.getCurrentForOrder(orderId, shopId))?.status === 'delivered'
-);
-deliveryLifecycleEffectsHub.install(new DeliveryLifecycleEffectsService(orderSync, new NotificationService(), new OrderStatusService()));
-
-// Notifications to everyone involved (inbox + push). Installed only here: tests and the bare app send nothing.
-appEvents.install(new AppEventService());
-nearbyHub.install(new DriverNearbyService());
-
-// Nearest-driver re-offer after a rejection / expired offer (docs/decisions/026).
-dispatchTriggerHub.install(new DriverDispatchService());
-
-// Sends the customer their delivery code (SMS) after a pickup commits (docs/decisions/028).
-deliveryCodeTriggerHub.install(new DeliveryCodeService(undefined, undefined, new FirestoreDeliveryCodeStore()));
+// Connect the reactions to delivery steps, dispatch, codes and notifications (see runtime.ts).
+const { orderSync } = installRuntime();
 
 httpServer.listen(env.PORT, () => {
   console.log(`Duo-Face server listening on port ${env.PORT} (${env.NODE_ENV})`);

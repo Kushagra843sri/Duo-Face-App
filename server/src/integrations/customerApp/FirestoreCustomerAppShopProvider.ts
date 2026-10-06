@@ -6,6 +6,6 @@ export class FirestoreCustomerAppShopProvider implements CustomerAppShopProvider
     const { getFirestore } = await import('firebase-admin/firestore');
     const db = getFirestore(getFirebaseAdminApp());
     const snapshot = await db.collection('shops').doc(customerAppShopId).get();
-    return snapshot.exists ? (snapshot.data() ?? null) : null;
+    return snapshot.exists ? { ...snapshot.data(), id: snapshot.id } : null;
   }
 }

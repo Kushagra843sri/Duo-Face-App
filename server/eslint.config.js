@@ -10,4 +10,9 @@ module.exports = tseslint.config(
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     },
   },
+  {
+    // jest.mock factories run lazily and must load their module with require().
+    files: ['tests/e2e/**/*.ts'],
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
 );

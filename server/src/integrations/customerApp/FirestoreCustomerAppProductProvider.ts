@@ -11,6 +11,7 @@ export class FirestoreCustomerAppProductProvider implements CustomerAppProductPr
     const { getFirestore } = await import('firebase-admin/firestore');
     const db = getFirestore(getFirebaseAdminApp());
     const snapshot = await db.collection('products').where('shopId', '==', shopId).get();
-    return snapshot.docs.map((doc) => doc.data());
+    // The document id is the product's identity: never depend on a copy of it stored inside the document.
+    return snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
   }
 }
