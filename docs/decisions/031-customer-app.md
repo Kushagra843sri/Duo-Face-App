@@ -91,7 +91,7 @@ Firestore Spark (50k reads / 20k writes per day), FCM, Cloudflare R2, Upstash Re
 - Cart is device-local (AsyncStorage), one shop at a time, re-priced by the server at checkout. Each checkout attempt carries a `clientRequestId`, so a retry after a network drop returns the same order.
 - Money is integer paise end to end; `lib/money.ts` is the only formatter.
 - **Verified:** typecheck, lint, web bundle export, and a click-through in the browser in dev preview mode (sample data): shops → products → add/steppers → cart persisted across a reload → checkout → place order → order screen → cancel → orders list → addresses (+ validation) → sign out redirects to sign-in. **Not verified:** real Firebase sign-in, talking to the real server, iOS/Android devices, GPS address fill, dark mode visuals (screenshots were unavailable).
-- Not done yet (C3): live driver tracking map, push notifications, delivery-code display, Cashfree online payment (C4).
+- Done in C3 (tracking, code, push) and C4 (Cashfree).
 
 ## C3 implementation notes (2026-10-06)
 
@@ -100,3 +100,26 @@ Firestore Spark (50k reads / 20k writes per day), FCM, Cloudflare R2, Upstash Re
 - **Push notifications:** `customer/lib/push.ts` registers the Android FCM token with the existing `/customer/notifications/device` endpoint after sign-in and unregisters on sign-out. Needs a development/production build with `google-services.json`; does nothing on web, Expo Go, preview or iOS. iOS push (APNs) is not set up.
 - **Verified:** server tests (809 pass), typecheck, lint, web export; browser click-through in preview mode of a full order lifecycle (status advancing, driver position moving, code appearing only when on the way). **Not verified:** the native map, a real push, any of it against a real Firebase project / driver.
 - Setup steps for the client: `docs/integration/FIREBASE_SETUP.md`.
+
+## C4 implementation notes (2026-10-06): Cashfree online payment
+
+Verified against Cashfree's current docs (API version `2026-01-01`): create order `POST /pg/orders` (amount in decimal rupees, `order_id` 3-45 chars, `customer_phone` required), fetch `GET /pg/orders/{id}` (`order_status` PAID/ACTIVE/EXPIRED/TERMINATED), webhook signature = base64(HMAC-SHA256(`x-webhook-timestamp` + raw body, secret key)) in `x-webhook-signature`. Sandbox is free; live needs the client's activated business account.
+
+**Flow.** `POST /customer/orders` with `paymentMethod: "online"` creates the order like COD (stock reserved in the same transaction) but `paymentStatus: awaiting_payment`, with a 15-minute hold (`paymentExpiresAt`). The shop does not see it (merchant list/get hide it) and cannot change its status until it is paid. `POST /customer/orders/:id/payment` creates (or re-fetches) the Cashfree order and returns a checkout URL on this server (`/pay/checkout?session=...`): a tiny page that loads Cashfree's JS SDK and redirects to their hosted checkout. The app opens it in the in-app browser, so it works identically in Expo Go, native builds and on web with no native Cashfree SDK.
+
+**Trust rule.** An order becomes `paid` only after this server asks Cashfree and is told `PAID` for the exact amount (integer paise). The webhook, the customer's "verify" call and the expiry sweep all go through that same check; a signed webhook body alone changes nothing. Paths are idempotent. A wrong amount is recorded (`amount_mismatch`) and the order stays unpaid.
+
+**Expiry.** A 60 s sweep (server start) settles unpaid orders past hold + 1 min grace: paid-meanwhile (missed webhook) are marked paid, the rest are cancelled and their stock restored; the gateway order is terminated best-effort. Customer cancel of an unpaid order does the same.
+
+**Money-risk decisions (please review).**
+- A **paid** online order cannot be cancelled by the customer in the app (409, "contact support"): refunds are NOT automated, so cancelling would leave money unrecorded.
+- If the **shop rejects** a paid order, or a payment lands on an order already cancelled/expired, the order gets `refundRequired: true` (and the `duo_face_payments` record `paid_needs_refund`) and a server warning is logged. **Nothing refunds automatically and there is no admin screen to see these yet**: someone must refund in the Cashfree dashboard until a refund/admin feature is built.
+- Minimum online order Rs 1 (Cashfree minimum). Fees are still zero.
+
+**New data.** `duo_face_payments/{cf_<hash>}` (provider, orderId, customerId, amountPaise, status created/paid/expired/amount_mismatch/paid_needs_refund, timestamps). Order fields added: `paymentExpiresAt`, `paidAt`, `refundRequired`.
+
+**Config.** `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_ENV` (sandbox default), `PUBLIC_BASE_URL` (HTTPS, must be reachable by Cashfree for the webhook). Unset = online payment off (`GET /customer/config` says so; the app shows only cash on delivery; online orders answer 503).
+
+**Notes.** The Cashfree SDK script on the checkout page has no SRI hash on purpose (single unversioned URL; a pin would break on their updates); CSP restricts scripts to this server and `sdk.cashfree.com`. The checkout/return pages are `no-store` with no Referer because the session id is in the URL.
+
+**Verified:** server tests (849 pass) incl. gateway request/response mapping, signature over raw bytes through the real Express app, amount tampering, a lying webhook, late payment after cancel, expiry/sweep/outage, refund flags; app typecheck/lint; browser click-through in preview mode (choose online -> awaiting payment with countdown -> pay -> paid, cancel hidden; COD unchanged). **Not verified:** any real call to Cashfree (no sandbox credentials were available), the checkout page loading Cashfree's SDK, a real webhook delivery, the in-app browser on a device. The first thing to do with sandbox keys is one test payment end to end.
