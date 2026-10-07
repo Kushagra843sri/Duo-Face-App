@@ -119,6 +119,17 @@ export function deliverDriverAssignment(assignmentId: string, proof: DeliveryPro
   });
 }
 
+/**
+ * The customer's number, released only when the server sees a fresh GPS fix within
+ * 300 m of the delivery location while the order is picked up (docs/decisions/032).
+ */
+export function getCustomerContact(assignmentId: string, location: { latitude: number; longitude: number; accuracyMeters?: number }) {
+  return apiRequest<{ phoneNumber: string }>(`/driver/assignments/${encodeURIComponent(assignmentId)}/customer-contact`, {
+    method: 'POST',
+    body: JSON.stringify({ location }),
+  });
+}
+
 /** Mirrors GET/PUT /driver/duty (server/src/routes/driver/duty.ts). */
 export interface DriverDuty {
   onDuty: boolean;

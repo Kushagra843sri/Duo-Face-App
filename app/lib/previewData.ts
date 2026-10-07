@@ -320,6 +320,18 @@ function route(role: PreviewRole, method: string, path: string, body: Record<str
     if (is('driver', 'assignments', '*', 'accept')) return transition(assignmentOf(seg[2]) ?? notFoundThrow(), 'accepted', ['assigned']);
     if (is('driver', 'assignments', '*', 'reject')) return transition(assignmentOf(seg[2]) ?? notFoundThrow(), 'rejected', ['assigned']);
     if (is('driver', 'assignments', '*', 'pickup')) return transition(assignmentOf(seg[2]) ?? notFoundThrow(), 'picked_up', ['accepted']);
+    if (is('driver', 'assignments', '*', 'customer-contact')) {
+      const a = assignmentOf(seg[2]) ?? notFoundThrow();
+      if (a.driverId !== DRIVER_ID) throw notFound('Assignment not found.');
+      if (a.status !== 'picked_up') throw conflict('You can call the customer once you have picked up the order.');
+      const o = orderOf(a.orderId);
+      if (!o) throw notFound('Assignment not found.');
+      const fix = body.location as { latitude: number; longitude: number; accuracyMeters?: number } | undefined;
+      if (!fix || typeof fix.accuracyMeters !== 'number' || fix.accuracyMeters > 100) throw conflict('Your GPS signal is not accurate enough yet. Move to open sky and try again.');
+      const metres = Math.hypot((fix.latitude - o.destination.latitude) * 111_195, (fix.longitude - o.destination.longitude) * 111_195 * Math.cos((o.destination.latitude * Math.PI) / 180));
+      if (metres > 300) throw conflict(`You are about ${Math.max(10, Math.round(metres / 10) * 10)} m from the delivery location. Get within 300 m to call the customer.`);
+      return { phoneNumber: o.phone };
+    }
     if (is('driver', 'assignments', '*', 'deliver')) {
       const a = assignmentOf(seg[2]) ?? notFoundThrow();
       // Same two proofs as the server: the customer code (preview: 123456) or a fix within 50 m.

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { RequestHandler } from 'express';
 import { z } from 'zod';
 
 import { FirebaseAuthService } from '../../integrations/firebase/FirebaseAuthService';
@@ -6,9 +7,11 @@ import type { FirebaseIdentityVerifier } from '../../integrations/firebase/Fireb
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { authenticateFirebase } from '../../middleware/authenticate';
 import { requireRole } from '../../middleware/authorize';
+import { createRateLimiter } from '../../middleware/rateLimit';
 import { requireActiveDriver } from '../../middleware/requireActiveDriver';
 import { resolveRole } from '../../middleware/resolveRole';
 import { validateBody } from '../../middleware/validateBody';
+import { CustomerContactService } from '../../services/customerContactService';
 import { DeliveryProofService } from '../../services/deliveryProofService';
 import { DeliveryAssignmentService, toDriverAssignmentDto } from '../../services/deliveryAssignmentService';
 import { DeliveryOrderService } from '../../services/deliveryOrderService';
@@ -35,6 +38,22 @@ const deliverBodySchema = z
   .strict()
   .refine((body) => (body.location !== undefined) !== (body.otp !== undefined), { message: 'Send exactly one of location or otp.' });
 
+// The customer's number is released only against a fresh GPS fix near the delivery location (decision 032).
+const contactBodySchema = z
+  .object({
+    location: z
+      .object({
+        latitude: z.number().finite().min(-90).max(90),
+        longitude: z.number().finite().min(-180).max(180),
+        accuracyMeters: z.number().finite().min(0).optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
+/** Per driver: 10 number requests / 60 s. */
+export const CONTACT_RATE_LIMIT = { windowMs: 60_000, max: 10 };
+
 /**
  * driverId always comes from req.driver (verified + active by
  * requireActiveDriver) — never from the request body, query, or params. No
@@ -46,7 +65,9 @@ export function createDriverAssignmentsRouter(
   driverService: DriverService = new DriverService(),
   assignmentService: DeliveryAssignmentService = new DeliveryAssignmentService(),
   deliveryOrderService: DeliveryOrderService = new DeliveryOrderService(assignmentService),
-  proofService: DeliveryProofService = new DeliveryProofService(assignmentService, deliveryOrderService)
+  proofService: DeliveryProofService = new DeliveryProofService(assignmentService, deliveryOrderService),
+  contactService: CustomerContactService = new CustomerContactService(assignmentService, deliveryOrderService),
+  contactLimiter: RequestHandler = createRateLimiter({ ...CONTACT_RATE_LIMIT, keyFor: (req) => req.driver?.driverId }) as RequestHandler
 ) {
   const router = Router();
 
@@ -136,6 +157,18 @@ export function createDriverAssignmentsRouter(
       const proof = body.otp !== undefined ? { otp: body.otp } : { location: body.location! };
       const assignment = await proofService.deliver(req.driver!, req.params.assignmentId, proof);
       res.json(toDriverAssignmentDto(assignment));
+    })
+  );
+
+  // Releases the customer's number only to the delivering driver standing near the address.
+  router.post(
+    '/:assignmentId/customer-contact',
+    ...guard,
+    contactLimiter,
+    validateBody(contactBodySchema),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const { location } = req.body as z.infer<typeof contactBodySchema>;
+      res.json(await contactService.getPhoneNumber(req.driver!, req.params.assignmentId, location));
     })
   );
 

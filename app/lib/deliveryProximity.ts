@@ -22,6 +22,16 @@ export function distanceMeters(a: Point, b: Point): number {
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
+/** "Call customer" appears this close to the delivery location (the server re-checks, decision 032). */
+export const CALL_RADIUS_METERS = 300;
+/** A fix less precise than this cannot show the driver is nearby. */
+export const CALL_MAX_ACCURACY_METERS = 100;
+
+export function canCallCustomer(distance: number | null, accuracyMeters: number | null | undefined): boolean {
+  if (distance === null || typeof accuracyMeters !== 'number') return false;
+  return distance <= CALL_RADIUS_METERS && accuracyMeters <= CALL_MAX_ACCURACY_METERS;
+}
+
 export function canMarkDelivered(distance: number | null, accuracyMeters: number | null | undefined): boolean {
   if (distance === null || typeof accuracyMeters !== 'number') return false;
   return distance <= DELIVERY_RADIUS_METERS && accuracyMeters <= MAX_FIX_ACCURACY_METERS;

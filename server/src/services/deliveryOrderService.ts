@@ -14,9 +14,9 @@ import type { DuoFaceShop } from '../types/duoFaceShop';
 import { DeliveryAssignmentService } from './deliveryAssignmentService';
 
 /**
- * The driver NEVER receives the customer's phone number (docs/decisions/028,
- * superseding 018/019): they only learn whether they may place a masked call,
- * which is allowed while the delivery is in progress.
+ * The driver does not receive the customer's phone number in the normal order
+ * view (docs/decisions/028). The one exception is CustomerContactService, which
+ * releases it only when the driver is at the delivery location (decision 032).
  */
 
 /**
@@ -45,6 +45,15 @@ export class DeliveryOrderService {
       throw new AppError(404, 'Assignment not found.');
     }
     return this.loadOrder(assignment, false, true);
+  }
+
+  /** Driver ownership as above, but WITH the customer's phone. Only CustomerContactService may call this (decision 032). */
+  async getForDriverWithPhone(driver: DuoFaceDriver, assignmentId: string): Promise<DeliveryOrder> {
+    const assignment = await this.assignmentService.getById(assignmentId);
+    if (!assignment || assignment.driverId !== driver.driverId || assignment.status === 'rejected') {
+      throw new AppError(404, 'Assignment not found.');
+    }
+    return this.loadOrder(assignment, true, true);
   }
 
   /** Merchant ownership: assignment.customerAppShopId must equal the merchant's linked shop; otherwise 404. */
