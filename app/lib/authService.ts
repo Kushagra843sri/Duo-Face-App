@@ -1,4 +1,10 @@
-import { onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  RecaptchaVerifier,
+  signInWithEmailAndPassword,
+  signInWithPhoneNumber,
+} from 'firebase/auth';
 import type { Auth, ConfirmationResult } from 'firebase/auth';
 import { Platform } from 'react-native';
 
@@ -21,6 +27,9 @@ export interface AuthService {
   /** False where Firebase Phone OTP is not implemented (native, until a dev build is set up — docs/decisions/017). */
   readonly isPhoneSignInSupported: boolean;
   signInWithPhone(phoneNumber: string): Promise<PhoneSignInConfirmation>;
+  /** Email + password: works on web, iOS and Android (including Expo Go). The backend only uses the verified uid. */
+  signInWithEmail(email: string, password: string): Promise<void>;
+  signUpWithEmail(email: string, password: string): Promise<void>;
   getCurrentUser(): AuthUser | null;
   /** Fires once with the restored (or absent) session, then on every change. Returns an unsubscribe. */
   subscribe(listener: (user: AuthUser | null) => void): () => void;
@@ -91,6 +100,14 @@ export class FirebaseAuthService implements AuthService {
     };
   }
 
+  async signInWithEmail(email: string, password: string): Promise<void> {
+    await signInWithEmailAndPassword(this.requireAuth(), email, password);
+  }
+
+  async signUpWithEmail(email: string, password: string): Promise<void> {
+    await createUserWithEmailAndPassword(this.requireAuth(), email, password);
+  }
+
   getCurrentUser(): AuthUser | null {
     const user = this.auth?.currentUser;
     return user ? toAuthUser(user) : null;
@@ -140,6 +157,12 @@ class PreviewAuthService implements AuthService {
   private readonly user: AuthUser = { uid: 'preview-user', phoneNumber: null };
 
   async signInWithPhone(): Promise<PhoneSignInConfirmation> {
+    throw new Error('Sign-in is disabled in UI preview mode.');
+  }
+  async signInWithEmail(): Promise<void> {
+    throw new Error('Sign-in is disabled in UI preview mode.');
+  }
+  async signUpWithEmail(): Promise<void> {
     throw new Error('Sign-in is disabled in UI preview mode.');
   }
   getCurrentUser() {

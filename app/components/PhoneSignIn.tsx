@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Store } from 'lucide-react-native';
-import { Text, TextInput, View } from 'react-native';
+import { Platform, Text, TextInput, View } from 'react-native';
 
 import { Button, usePalette } from '@/components/ui';
 import { authService } from '@/lib/authService';
@@ -11,6 +11,16 @@ function describeSignInError(error: unknown): string {
   switch (code) {
     case 'auth/invalid-phone-number':
       return 'Enter a valid phone number including country code, e.g. +919876543210.';
+    case 'auth/invalid-email':
+      return 'Enter a valid email address.';
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'Email or password is incorrect.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists. Sign in instead.';
+    case 'auth/weak-password':
+      return 'Choose a password with at least 6 characters.';
     case 'auth/invalid-verification-code':
     case 'auth/code-expired':
       return 'That code is incorrect or expired. Try again or request a new one.';
@@ -18,8 +28,13 @@ function describeSignInError(error: unknown): string {
       return 'Too many attempts. Please wait a while and try again.';
     case 'auth/network-request-failed':
       return 'Unable to connect. Check your connection and try again.';
+    case 'auth/operation-not-allowed':
+      return 'Firebase has not enabled SMS for this country yet. In the Firebase console: Authentication > Settings > SMS region policy, allow India (+91).';
+    case 'auth/captcha-check-failed':
+    case 'auth/invalid-app-credential':
+      return 'The security check failed. Reload the page and try again; make sure this site address is in Firebase Authorized domains.';
     default:
-      return error instanceof Error && !code ? error.message : 'Sign-in failed. Please try again.';
+      return error instanceof Error && !code ? error.message : `Sign-in failed (${code ?? 'unknown error'}). Please try again.`;
   }
 }
 
@@ -34,6 +49,10 @@ export function PhoneSignIn() {
   const [confirmation, setConfirmation] = useState<PhoneSignInConfirmation | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'phone' | 'email'>(authService.isPhoneSignInSupported && Platform.OS === 'web' ? 'phone' : 'email');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isNewAccount, setIsNewAccount] = useState(false);
   const busyRef = useRef(false);
   const palette = usePalette();
 
@@ -63,17 +82,6 @@ export function PhoneSignIn() {
     );
   }
 
-  if (!authService.isPhoneSignInSupported) {
-    return (
-      <View className="flex-1 items-center justify-center gap-2 bg-canvas px-8 dark:bg-canvas-dark">
-        <Text className="text-lg font-bold text-ink dark:text-ink-dark">Phone sign-in unavailable</Text>
-        <Text className="text-center text-sm text-muted dark:text-muted-dark">
-          Phone OTP on iOS/Android needs a native development build, which is not set up yet. Use the web build for now.
-        </Text>
-      </View>
-    );
-  }
-
   const inputClass =
     'h-14 rounded-2xl border border-line bg-surface px-4 text-lg text-ink dark:border-line-dark dark:bg-surface-dark dark:text-ink-dark';
 
@@ -85,11 +93,56 @@ export function PhoneSignIn() {
         </View>
         <Text className="text-3xl font-extrabold text-ink dark:text-ink-dark">Duo-Face</Text>
         <Text className="text-center text-sm text-muted dark:text-muted-dark">
-          {confirmation === null ? 'Sign in or create an account with your phone number.' : 'Enter the 6-digit code we sent you.'}
+          {mode === 'email'
+            ? 'Sign in or create an account with your email.'
+            : confirmation === null
+              ? 'Sign in or create an account with your phone number.'
+              : 'Enter the 6-digit code we sent you.'}
         </Text>
       </View>
 
-      {confirmation === null ? (
+      {mode === 'email' ? (
+        <>
+          <TextInput
+            className={inputClass}
+            placeholder="Email"
+            placeholderTextColor={palette.muted}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            value={email}
+            onChangeText={setEmail}
+            editable={!isBusy}
+          />
+          <TextInput
+            className={inputClass}
+            placeholder="Password (6+ characters)"
+            placeholderTextColor={palette.muted}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete={isNewAccount ? 'new-password' : 'current-password'}
+            value={password}
+            onChangeText={setPassword}
+            editable={!isBusy}
+          />
+          <Button
+            label={isNewAccount ? 'Create account' : 'Sign in'}
+            loading={isBusy}
+            disabled={email.trim().length === 0 || password.length === 0}
+            onPress={() =>
+              run(() => (isNewAccount ? authService.signUpWithEmail(email.trim(), password) : authService.signInWithEmail(email.trim(), password)))
+            }
+          />
+          <Button
+            label={isNewAccount ? 'Have an account? Sign in' : 'New here? Create an account'}
+            variant="ghost"
+            onPress={() => {
+              setIsNewAccount((v) => !v);
+              setError(null);
+            }}
+          />
+        </>
+      ) : confirmation === null ? (
         <>
           <TextInput
             className={inputClass}
@@ -136,6 +189,19 @@ export function PhoneSignIn() {
           />
         </>
       )}
+
+      {Platform.OS === 'web' && authService.isPhoneSignInSupported ? (
+        <Button
+          label={mode === 'email' ? 'Use phone number instead' : 'Use email instead'}
+          variant="ghost"
+          onPress={() => {
+            setMode((m) => (m === 'email' ? 'phone' : 'email'));
+            setConfirmation(null);
+            setCode('');
+            setError(null);
+          }}
+        />
+      ) : null}
 
       {error ? <Text className="text-center text-sm font-medium text-red-600">{error}</Text> : null}
     </View>
