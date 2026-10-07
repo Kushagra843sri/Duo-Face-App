@@ -30,6 +30,7 @@ import { createMerchantInventoryRouter } from './routes/merchant/inventory';
 import { createMerchantOrdersRouter } from './routes/merchant/orders';
 import { createMerchantProductsRouter } from './routes/merchant/products';
 import { createMerchantShopRouter } from './routes/merchant/shop';
+import { createMerchantShopImagesRouter } from './routes/merchant/shopImages';
 
 export const app = express();
 
@@ -72,6 +73,7 @@ app.use('/pay', createPayRouter(cashfreeConfig?.env ?? 'sandbox'));
 app.use('/webhooks/cashfree', createCashfreeWebhookRouter(paymentService));
 app.use('/merchant', createMerchantRouter());
 app.use('/merchant/profile', createMerchantProfileRouter());
+app.use('/merchant/shop/images', createMerchantShopImagesRouter());
 app.use('/merchant/shop', createMerchantShopRouter());
 app.use('/merchant/inventory', createMerchantInventoryRouter());
 app.use('/merchant/products', createMerchantProductsRouter());

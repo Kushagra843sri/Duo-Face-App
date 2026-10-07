@@ -17,6 +17,7 @@ import { distanceMeters } from '@/lib/deliveryProximity';
 import { adminPreviewRoute } from '@/lib/previewAdmin';
 import { previewNotificationsRoute } from '@/lib/previewNotifications';
 import { previewProfileRoute } from '@/lib/previewProfiles';
+import { previewShopImageRoute } from '@/lib/previewShopImages';
 import type { PreviewRole } from '@/lib/preview';
 
 /**
@@ -299,6 +300,8 @@ function route(role: PreviewRole, method: string, path: string, body: Record<str
 
   const profile = previewProfileRoute(role, method, pathname, body);
   if (profile !== undefined) return profile;
+  const shopImages = previewShopImageRoute(method, pathname);
+  if (shopImages !== undefined) return shopImages;
 
   if (role === 'driver') {
     if (is('driver', 'me')) return { firebaseUid: 'preview-user', role: 'driver', driverId: DRIVER_ID, name: 'Ravi Kumar', phoneNumber: '+919811100001', status: 'active' } satisfies DriverMe;

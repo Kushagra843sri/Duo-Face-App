@@ -59,6 +59,8 @@ export interface CustomerShopView {
   name: string;
   address: string;
   imageUrl: string | null;
+  /** Storefront photos the owner uploaded (up to 4, first = cover), so customers recognise the shop by sight. */
+  images: string[];
   rating: number | null;
   isOpen: boolean;
 }

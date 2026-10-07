@@ -11,6 +11,7 @@ import { Field } from '@/components/profile/Field';
 import { PhotoField } from '@/components/profile/PhotoField';
 import { ProfileSummary } from '@/components/profile/ProfileSummary';
 import { SectionForm } from '@/components/profile/SectionForm';
+import { ShopPhotosCard } from '@/components/profile/ShopPhotosCard';
 import { Button, Muted, Screen, SectionCard } from '@/components/ui';
 import { useApiResource } from '@/hooks/useApiResource';
 import { recoverPendingPhoto } from '@/lib/profilePhotos';
@@ -172,6 +173,7 @@ export default function MerchantProfileScreen() {
         completeness={data.completeness}
       />
 
+      <ShopPhotosCard />
       <ShopSection profile={data} onSaved={retry} />
       <TaxSection profile={data} onSaved={retry} />
       <BankSection bank={data.bank} save={async (bank) => { await saveMerchantProfile({ bank }); retry(); }} />

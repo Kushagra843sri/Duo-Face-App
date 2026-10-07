@@ -9,6 +9,13 @@ import { rupeesToPaise } from './money';
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
 
+/** Only plain https URLs from the owner's `images` list reach customers. */
+const shopImageUrls = (v: unknown): string[] => {
+  if (!Array.isArray(v)) return [];
+  const urls = v.map((i) => (i as { url?: unknown } | null)?.url).filter((u): u is string => typeof u === 'string' && u.startsWith('https://'));
+  return urls.slice(0, 4);
+};
+
 /** What a customer can browse. Read-only; never exposes merchant/owner or internal fields. */
 export class CustomerCatalogService {
   constructor(
@@ -25,6 +32,7 @@ export class CustomerCatalogService {
         name: String(s.name),
         address: str(s.address) ?? '',
         imageUrl: str(s.imageUrl),
+        images: shopImageUrls(s.images),
         rating: typeof s.rating === 'number' ? s.rating : null,
         isOpen: s.isOpen !== false,
       }))
