@@ -12,7 +12,6 @@ import {
   rejectDriverAssignment,
 } from '@/api/driver';
 import { describeError, ErrorState } from '@/components/ErrorState';
-import { CallCustomerCard } from '@/components/CallCustomerCard';
 import { DeliveryOrderSections } from '@/components/DeliveryOrderSections';
 import { DeliveryProofPanel } from '@/components/DeliveryProofPanel';
 import { DriverDeliveryMapSection } from '@/components/DriverDeliveryMapSection';
@@ -30,7 +29,7 @@ export default function DriverAssignmentDetailScreen() {
   const { assignmentId } = useLocalSearchParams<{ assignmentId: string }>();
   const { data, isLoading, error, retry } = useApiResource(() => getDriverAssignment(assignmentId), [assignmentId]);
   const [isMutating, setIsMutating] = useState(false);
-  // The loaded order (destination, canCallCustomer) is needed outside the order sections too.
+  // The loaded order (destination) is needed outside the order sections too.
   const [order, setOrder] = useState<DeliveryOrder | null>(null);
 
   async function runMutation(mutation: () => Promise<unknown>) {
@@ -92,8 +91,6 @@ export default function DriverAssignmentDetailScreen() {
       <DeliveryOrderSections assignmentId={assignmentId} fetchOrder={() => getDriverAssignmentOrder(assignmentId)} onLoaded={setOrder}>
         {(order) => <DriverDeliveryMapSection destination={order.destination} />}
       </DeliveryOrderSections>
-
-      {order?.canCallCustomer && (data.status === 'accepted' || data.status === 'picked_up') ? <CallCustomerCard assignmentId={assignmentId} /> : null}
 
       <LiveTrackingSection assignmentId={data.assignmentId} status={data.status} />
 

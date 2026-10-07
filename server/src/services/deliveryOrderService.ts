@@ -18,7 +18,6 @@ import { DeliveryAssignmentService } from './deliveryAssignmentService';
  * superseding 018/019): they only learn whether they may place a masked call,
  * which is allowed while the delivery is in progress.
  */
-const DRIVER_CALLABLE_STATUSES = ['accepted', 'picked_up'];
 
 /**
  * The single read boundary from a Duo-Face delivery assignment to its
@@ -45,7 +44,7 @@ export class DeliveryOrderService {
     if (!assignment || assignment.driverId !== driver.driverId || assignment.status === 'rejected') {
       throw new AppError(404, 'Assignment not found.');
     }
-    return this.loadOrder(assignment, false, true, DRIVER_CALLABLE_STATUSES.includes(assignment.status));
+    return this.loadOrder(assignment, false, true);
   }
 
   /** Merchant ownership: assignment.customerAppShopId must equal the merchant's linked shop; otherwise 404. */
@@ -60,8 +59,7 @@ export class DeliveryOrderService {
   private async loadOrder(
     assignment: DeliveryAssignment,
     includePhoneNumber: boolean,
-    includeDestination: boolean,
-    driverMayCall = false
+    includeDestination: boolean
   ): Promise<DeliveryOrder> {
     const raw = await this.orderProvider.getOrderById(assignment.orderId);
     if (!raw) {
@@ -91,7 +89,6 @@ export class DeliveryOrderService {
         ...(includePhoneNumber && order.delivery.phoneNumber ? { phoneNumber: order.delivery.phoneNumber } : {}),
       },
       ...(destination ? { destination } : {}),
-      ...(includeDestination ? { canCallCustomer: driverMayCall && Boolean(order.delivery.phoneNumber) } : {}),
       items: order.items.map((item) => ({ name: item.name, quantity: item.quantity })),
       itemCount: order.items.length,
       total: order.pricing.total,

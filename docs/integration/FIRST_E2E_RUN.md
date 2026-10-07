@@ -19,7 +19,7 @@ Time: about 2-3 hours the first time, most of it in the Firebase and Cashfree co
 | Push notifications | Needs an Android development build + `google-services.json` | Not needed: the in-app inbox (bell) shows every notification |
 | iOS anything | No Apple push / dev build set up | Skip iOS |
 | Driver **KYC reaching review** | Needs both live photos, which need private R2 storage | Test KYC with the **shop owner** instead (no photos needed); driver KYC is an optional extra (section 10) |
-| Masked "Call customer", delivery-code **SMS** | Needs Exotel + DLT registration | Skip. The customer reads the code in the app |
+| Delivery-code SMS, "Call customer" | Removed (Exotel is no longer used) | The customer reads the code in the app and tells the driver |
 | Address geocoding | No OpenCage key | Not needed: the customer's saved GPS point is used |
 | Background / on-duty location while the app is closed | Web only runs while the tab is open | Keep the driver tab open |
 | Native live map | `react-native-maps` has no web version | On web the customer sees driver coordinates as text |
@@ -68,12 +68,11 @@ FIREBASE_PRIVATE_KEY="<private_key from the JSON, keep the \n escapes, wrap in q
 
 PROFILE_ENCRYPTION_KEY=<node -e "console.log(require('crypto').randomBytes(32).toString('base64'))">
 DELIVERY_OTP_SECRET=<16+ random characters>
-CALL_WEBHOOK_SECRET=<16+ random characters>
 REDIS_URL=<rediss://...>
 ADMIN_FIREBASE_UIDS=            # filled in during section 5
 ```
 
-Leave unset for now: `PUSH_NOTIFICATIONS_ENABLED`, `OPENCAGE_API_KEY`, `EXOTEL_*`, `R2_*`, `CASHFREE_*` / `PUBLIC_BASE_URL` (added in section 8).
+Leave unset for now: `PUSH_NOTIFICATIONS_ENABLED`, `OPENCAGE_API_KEY`, `R2_*`, `CASHFREE_*` / `PUBLIC_BASE_URL` (added in section 8).
 
 - [ ] `.env` is in place and **not** tracked by git (`git status` does not list it).
 - [ ] `cd server && npm run dev` starts and prints `listening on port 4000`.

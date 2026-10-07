@@ -46,8 +46,8 @@ Used for (a) the customer's delivery address (map pin, decision 021) and (b) the
 - **To verify with OpenCage before launch**: their terms for storing/caching results on the free plan versus a paid plan. We cache indefinitely; confirm that is permitted for the plan the client buys.
 - Shop pickup accuracy: the Duo-Face shop stores its own `pickupLocation` (decision 026). Provisioning stores an explicit one or geocodes the Customer App address once; `backfillPickupLocation(shopId)` fixes shops provisioned earlier and `setPickupLocation` corrects a wrong one. Only shops without a stored location fall back to geocoding the free-text address on each request.
 
-## 4b. Telephony (Exotel) — masked calls and the delivery-code SMS
-See decision 028. Needs: an Exotel account (API key/token/SID), a purchased **ExoPhone** (`EXOTEL_CALLER_ID`), a public HTTPS URL for `PUBLIC_BASE_URL` (status callbacks go to `/webhooks/exotel/call-status`), and for the SMS a **DLT** registration (sender, entity id, approved template whose text goes in `EXOTEL_SMS_TEMPLATE` with `{code}`). Generate `CALL_WEBHOOK_SECRET` and `DELIVERY_OTP_SECRET` yourself (16+ random characters each). Set `GEOCODER_MIN_CONFIDENCE=9` or `10` so the 50 m delivery rule is meaningful.
+## 4b. Telephony (removed)
+Exotel (masked calls and the delivery-code SMS) was removed on 2026-10-08, see the update note in decision 028. The customer reads the delivery code in the Customer App. Nothing to set up.
 
 ## 4c. Profiles: encryption key and R2 photo bucket
 See decision 029. Generate `PROFILE_ENCRYPTION_KEY` (32 random bytes, base64) and back it up. Create a **private** Cloudflare R2 bucket and an API token with read/write on it, then set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`. Never make the bucket public (photos are served only through short-lived signed URLs). Set `PLATFORM_COMMISSION_BPS` (1000 = 10%).

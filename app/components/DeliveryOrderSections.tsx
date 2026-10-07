@@ -23,7 +23,7 @@ interface Props {
   assignmentId: string;
   /** Rendered after the Delivery and Order sections once the order has loaded. */
   children?: (order: DeliveryOrder) => React.ReactNode;
-  /** Lets the screen use the loaded order (destination, canCallCustomer) outside these sections. */
+  /** Lets the screen use the loaded order (destination) outside these sections. */
   onLoaded?: (order: DeliveryOrder) => void;
 }
 

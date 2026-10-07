@@ -46,8 +46,8 @@ export function installRuntime(): { orderSync: CustomerOrderSyncService } {
   // Nearest-driver re-offer after a rejection / expired offer (docs/decisions/026).
   dispatchTriggerHub.install(new DriverDispatchService());
 
-  // Keeps the customer's delivery code for the app (and sends the SMS when configured) after a pickup commits (docs/decisions/028).
-  deliveryCodeTriggerHub.install(new DeliveryCodeService(undefined, undefined, new FirestoreDeliveryCodeStore()));
+  // Keeps the customer's delivery code for the app after a pickup commits (docs/decisions/028).
+  deliveryCodeTriggerHub.install(new DeliveryCodeService(undefined, new FirestoreDeliveryCodeStore()));
 
   return { orderSync };
 }

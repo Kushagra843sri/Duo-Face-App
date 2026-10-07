@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import type { RequestHandler } from 'express';
 import { z } from 'zod';
 
 import { FirebaseAuthService } from '../../integrations/firebase/FirebaseAuthService';
@@ -7,11 +6,9 @@ import type { FirebaseIdentityVerifier } from '../../integrations/firebase/Fireb
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { authenticateFirebase } from '../../middleware/authenticate';
 import { requireRole } from '../../middleware/authorize';
-import { createRateLimiter } from '../../middleware/rateLimit';
 import { requireActiveDriver } from '../../middleware/requireActiveDriver';
 import { resolveRole } from '../../middleware/resolveRole';
 import { validateBody } from '../../middleware/validateBody';
-import { CustomerCallService } from '../../services/customerCallService';
 import { DeliveryProofService } from '../../services/deliveryProofService';
 import { DeliveryAssignmentService, toDriverAssignmentDto } from '../../services/deliveryAssignmentService';
 import { DeliveryOrderService } from '../../services/deliveryOrderService';
@@ -38,9 +35,6 @@ const deliverBodySchema = z
   .strict()
   .refine((body) => (body.location !== undefined) !== (body.otp !== undefined), { message: 'Send exactly one of location or otp.' });
 
-/** Masked-call limit per driver: 5 requests / 60 s (per-assignment limits live in the service). */
-export const CALL_RATE_LIMIT = { windowMs: 60_000, max: 5 };
-
 /**
  * driverId always comes from req.driver (verified + active by
  * requireActiveDriver) — never from the request body, query, or params. No
@@ -52,9 +46,7 @@ export function createDriverAssignmentsRouter(
   driverService: DriverService = new DriverService(),
   assignmentService: DeliveryAssignmentService = new DeliveryAssignmentService(),
   deliveryOrderService: DeliveryOrderService = new DeliveryOrderService(assignmentService),
-  proofService: DeliveryProofService = new DeliveryProofService(assignmentService, deliveryOrderService),
-  callService: CustomerCallService = new CustomerCallService(assignmentService),
-  callLimiter: RequestHandler = createRateLimiter({ ...CALL_RATE_LIMIT, keyFor: (req) => req.driver?.driverId }) as RequestHandler
+  proofService: DeliveryProofService = new DeliveryProofService(assignmentService, deliveryOrderService)
 ) {
   const router = Router();
 
@@ -144,16 +136,6 @@ export function createDriverAssignmentsRouter(
       const proof = body.otp !== undefined ? { otp: body.otp } : { location: body.location! };
       const assignment = await proofService.deliver(req.driver!, req.params.assignmentId, proof);
       res.json(toDriverAssignmentDto(assignment));
-    })
-  );
-
-  // Masked call to the customer: no body, and the response never contains a phone number.
-  router.post(
-    '/:assignmentId/call-customer',
-    ...guard,
-    callLimiter,
-    asyncHandler(async (req: AuthenticatedRequest, res) => {
-      res.status(202).json(await callService.callCustomer(req.driver!, req.params.assignmentId));
     })
   );
 

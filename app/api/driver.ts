@@ -119,13 +119,6 @@ export function deliverDriverAssignment(assignmentId: string, proof: DeliveryPro
   });
 }
 
-/** Masked call: the server rings the driver, then connects the customer. No phone number is ever returned. */
-export function callCustomer(assignmentId: string) {
-  return apiRequest<{ callId: string; status: 'connecting' }>(`/driver/assignments/${encodeURIComponent(assignmentId)}/call-customer`, {
-    method: 'POST',
-  });
-}
-
 /** Mirrors GET/PUT /driver/duty (server/src/routes/driver/duty.ts). */
 export interface DriverDuty {
   onDuty: boolean;

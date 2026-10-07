@@ -122,18 +122,17 @@ function merchantDeliveryDto(a: AssignmentState): MerchantDeliveryAssignment {
   };
 }
 
-/** Same rule as the server (docs/decisions/028): a driver never gets the customer's phone, only canCallCustomer. */
+/** Same rule as the server (docs/decisions/028): a driver never gets the customer's phone. */
 function deliveryOrderDto(a: AssignmentState, forDriver: boolean): DeliveryOrder {
   const o = orderOf(a.orderId);
   if (!o) throw notFound();
   const phoneVisible = !forDriver;
-  const canCall = forDriver && (a.status === 'accepted' || a.status === 'picked_up');
   return {
     assignmentId: a.assignmentId,
     orderId: o.orderId,
     shopName: 'Fresh Mart (preview)',
     delivery: { label: o.label, fullAddress: o.address, ...(phoneVisible ? { phoneNumber: o.phone } : {}) },
-    ...(forDriver ? { destination: o.destination, canCallCustomer: canCall } : {}),
+    ...(forDriver ? { destination: o.destination } : {}),
     items: o.items.map((i) => ({ name: i.name, quantity: i.quantity })),
     itemCount: o.items.length,
     total: totalOf(o),
@@ -318,12 +317,6 @@ function route(role: PreviewRole, method: string, path: string, body: Record<str
     if (is('driver', 'assignments', '*', 'accept')) return transition(assignmentOf(seg[2]) ?? notFoundThrow(), 'accepted', ['assigned']);
     if (is('driver', 'assignments', '*', 'reject')) return transition(assignmentOf(seg[2]) ?? notFoundThrow(), 'rejected', ['assigned']);
     if (is('driver', 'assignments', '*', 'pickup')) return transition(assignmentOf(seg[2]) ?? notFoundThrow(), 'picked_up', ['accepted']);
-    if (is('driver', 'assignments', '*', 'call-customer')) {
-      const a = assignmentOf(seg[2]) ?? notFoundThrow();
-      if (a.driverId !== DRIVER_ID) throw notFound('Assignment not found.');
-      if (a.status !== 'accepted' && a.status !== 'picked_up') throw conflict('You can call the customer while the delivery is in progress.');
-      return { callId: `preview-call-${Date.now()}`, status: 'connecting' };
-    }
     if (is('driver', 'assignments', '*', 'deliver')) {
       const a = assignmentOf(seg[2]) ?? notFoundThrow();
       // Same two proofs as the server: the customer code (preview: 123456) or a fix within 50 m.

@@ -14,8 +14,8 @@ import { DeliveryProofService, DELIVERY_RADIUS_METERS } from '../../src/services
 import { DriverService } from '../../src/services/driverService';
 import { DuoFaceIdentityService } from '../../src/services/duoFaceIdentityService';
 import { DuoFaceRoleResolver } from '../../src/services/roleResolver';
-import type { CustomerCodeSender } from '../../src/integrations/telephony/CustomerCodeSender';
 import { DeliveryCodeService } from '../../src/services/deliveryCodeService';
+import { FieldCrypto } from '../../src/services/fieldCrypto';
 
 const T = new Date('2026-06-01T10:00:00Z');
 const DEST = { latitude: 28.6315, longitude: 77.2167 };
@@ -249,7 +249,7 @@ describe('delivery code (OTP)', () => {
   });
 });
 
-describe('DeliveryCodeService (sends the code to the customer)', () => {
+describe('DeliveryCodeService (keeps the code for the customer app)', () => {
   const orderProvider = {
     listOrdersByShopId: async () => [],
     getOrderById: async (id: string) => (id === 'order-1' ? order : null),
@@ -257,20 +257,20 @@ describe('DeliveryCodeService (sends the code to the customer)', () => {
       throw new Error('unused');
     },
   };
+  const crypto = new FieldCrypto(Buffer.alloc(32, 7));
 
-  it('sends the code to the number on the order', async () => {
-    const sent: Array<[string, string]> = [];
-    const sender: CustomerCodeSender = { enabled: true, send: async (phone, code) => (sent.push([phone, code]), 'sent') };
-    await new DeliveryCodeService(orderProvider, sender).issue('order-1', 'shop-1', '654321');
-    expect(sent).toEqual([['+919876543210', '654321']]);
+  it('stores the code encrypted for the order', async () => {
+    const set = jest.fn(async () => undefined);
+    await new DeliveryCodeService(orderProvider, { set } as never, crypto).issue('order-1', 'shop-1', '654321');
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(set.mock.calls[0])).not.toContain('654321');
   });
 
-  it('sends nothing for a mismatched shop, a missing order or a disabled sender', async () => {
-    const send = jest.fn(async () => 'sent' as const);
-    const enabled: CustomerCodeSender = { enabled: true, send };
-    await new DeliveryCodeService(orderProvider, enabled).issue('order-1', 'other-shop', '1');
-    await new DeliveryCodeService(orderProvider, enabled).issue('missing', 'shop-1', '1');
-    await new DeliveryCodeService(orderProvider, { enabled: false, send }).issue('order-1', 'shop-1', '1');
-    expect(send).not.toHaveBeenCalled();
+  it('stores nothing for a mismatched shop, a missing order or when no store is configured', async () => {
+    const set = jest.fn(async () => undefined);
+    await new DeliveryCodeService(orderProvider, { set } as never, crypto).issue('order-1', 'other-shop', '1');
+    await new DeliveryCodeService(orderProvider, { set } as never, crypto).issue('missing', 'shop-1', '1');
+    await new DeliveryCodeService(orderProvider, null, crypto).issue('order-1', 'shop-1', '1');
+    expect(set).not.toHaveBeenCalled();
   });
 });

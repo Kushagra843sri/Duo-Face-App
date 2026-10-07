@@ -35,7 +35,7 @@ Project settings → Service accounts → Generate new private key. Put `project
 Project settings → Your apps → add an **Android app** with package `com.duoface.customer`; download `google-services.json` and set `GOOGLE_SERVICES_JSON=<path>` for the build. The server sends through FCM with the same service account (no extra key). Push needs a development/production build, not Expo Go. iOS push needs an Apple developer account and APNs key and is not set up yet.
 
 ## 7. Other server settings
-`PROFILE_ENCRYPTION_KEY` (32 random bytes, base64: the command is in `server/.env.example`) is required for profiles and for showing the delivery code in the Customer App. Redis (`REDIS_URL`, e.g. Upstash free tier) for live driver location. Exotel, OpenCage, Cloudflare R2: only for calls/SMS, geocoding, and KYC photos.
+`PROFILE_ENCRYPTION_KEY` (32 random bytes, base64: the command is in `server/.env.example`) is required for profiles and for showing the delivery code in the Customer App. Redis (`REDIS_URL`, e.g. Upstash free tier) for live driver location. OpenCage, Cloudflare R2: only for geocoding and KYC photos.
 
 ## 8. First data
 Nothing needs to be created by hand. A shop owner registers in the Merchant/Driver app (which creates the shop and lists it for customers, **closed**), fills in the profile, adds products with their starting stock, and taps **Open** on the dashboard. Customers then see the shop in the Customer App. Drivers register the same way and go on duty. Keep one admin account (section 9) for refunds and KYC review.

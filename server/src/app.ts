@@ -23,7 +23,6 @@ import { createDriverProfileRouter } from './routes/driver/profile';
 import { createMerchantProfileRouter } from './routes/merchant/profile';
 import { createDriverDutyRouter } from './routes/driver/duty';
 import { createDriverLocationRouter } from './routes/driver/location';
-import { createExotelWebhookRouter } from './routes/webhooks/exotel';
 import { createDriverTrackingRouter } from './routes/driver/tracking';
 import { createMerchantRouter } from './routes/merchant';
 import { createMerchantDeliveriesRouter } from './routes/merchant/deliveries';
@@ -84,7 +83,6 @@ app.use('/driver/duty', createDriverDutyRouter());
 app.use('/driver/location', createDriverLocationRouter());
 app.use('/driver/tracking', createDriverTrackingRouter());
 app.use('/driver/assignments', createDriverAssignmentsRouter());
-app.use('/webhooks/exotel', createExotelWebhookRouter());
 
 app.use(notFound);
 app.use(errorHandler);

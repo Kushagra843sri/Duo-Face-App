@@ -167,7 +167,6 @@ describe('GET /driver/assignments/:id/order', () => {
       orderId: 'order-1',
       shopName: 'Fresh Mart',
       delivery: { label: 'Home', fullAddress: '123 MG Road' },
-      canCallCustomer: false, // not accepted yet
       items: [{ name: 'Amul Milk', quantity: 2 }],
       itemCount: 1,
       total: 71,
@@ -176,17 +175,16 @@ describe('GET /driver/assignments/:id/order', () => {
   });
 
   it.each([
-    ['assigned', false],
-    ['accepted', true],
-    ['picked_up', true],
-    ['delivered', false],
-  ])('a driver never sees the customer phone; canCallCustomer when status is %s -> %s', async (status, canCall) => {
+    ['assigned'],
+    ['accepted'],
+    ['picked_up'],
+    ['delivered'],
+  ])('a driver never sees the customer phone when status is %s', async (status) => {
     const { app } = build({ role: 'driver', assignments: { 'assignment-1': baseAssignment({ status }) } });
     const response = await request(app).get(DRIVER_URL).set(auth);
     expect(response.status).toBe(200);
     expect(response.body.delivery.phoneNumber).toBeUndefined();
     expect(JSON.stringify(response.body)).not.toContain('+911234567890');
-    expect(response.body.canCallCustomer).toBe(canCall);
   });
 
   it('returns 404 once the driver has rejected the assignment', async () => {

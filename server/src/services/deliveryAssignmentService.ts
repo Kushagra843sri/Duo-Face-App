@@ -11,7 +11,7 @@ import { DriverService } from './driverService';
 import { deliveryEventHub } from '../realtime/deliveryEvents';
 import type { DeliveryEventPublisher } from '../realtime/deliveryEvents';
 import { toCustomerStatus } from './customerTrackingStatus';
-import { loadDeliveryOtpSecret } from '../config/telephony';
+import { loadDeliveryOtpSecret } from '../config/deliveryOtp';
 import { deliveryCodeTriggerHub } from './deliveryCodeTrigger';
 import type { DeliveryCodeTrigger } from './deliveryCodeTrigger';
 import { DeliveryOtp, MAX_OTP_ATTEMPTS } from './deliveryOtp';

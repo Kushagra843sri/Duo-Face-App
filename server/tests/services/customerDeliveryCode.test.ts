@@ -40,31 +40,17 @@ async function setup() {
       throw new Error('unused');
     },
   };
-  const send = jest.fn().mockResolvedValue('sent');
-  const issuer = new DeliveryCodeService(orderProvider as never, { enabled: true, send }, store, crypto, () => NOW);
-  return { data, docs, store, issuer, send, orderId: placed.order.orderId, reader: new CustomerDeliveryCodeService(data, store, crypto) };
+  const issuer = new DeliveryCodeService(orderProvider as never, store, crypto, () => NOW);
+  return { data, docs, store, issuer, orderId: placed.order.orderId, reader: new CustomerDeliveryCodeService(data, store, crypto) };
 }
 
 describe('delivery code for in-app display', () => {
-  it('issue stores the code encrypted (never plaintext) and still sends the SMS', async () => {
-    const { docs, issuer, send, orderId } = await setup();
+  it('issue stores the code encrypted (never plaintext)', async () => {
+    const { docs, issuer, orderId } = await setup();
     await issuer.issue(orderId, 'shop-1', '654321');
     const doc = docs.get(orderId)!;
     expect(JSON.stringify(doc)).not.toContain('654321');
     expect(String(doc.code)).toMatch(/^v1:/);
-    expect(send).toHaveBeenCalledWith('9876543210', '654321');
-  });
-
-  it('issue stores the code even when SMS is disabled', async () => {
-    const { data, docs, store, orderId } = await setup();
-    const issuer = new DeliveryCodeService(
-      { getOrderById: async (id: string) => ({ ...data.read('orders', id), orderId: id }), listOrdersByShopId: async () => [], markOrderDelivered: async () => { throw new Error('x'); } } as never,
-      { enabled: false, send: jest.fn() },
-      store,
-      crypto
-    );
-    await issuer.issue(orderId, 'shop-1', '111222');
-    expect(docs.has(orderId)).toBe(true);
   });
 
   it('owner reads the code only while the order is out for delivery', async () => {

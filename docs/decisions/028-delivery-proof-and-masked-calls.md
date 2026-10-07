@@ -1,5 +1,7 @@
 # 028 — Delivery proof (50 m rule + customer code) and masked customer calls
 
+> **Update (2026-10-08): Exotel was removed.** Sections 2 (code by SMS) and 3 (masked calls) below are history only: there is no "Call customer" button, no `/webhooks/exotel`, no `duo_face_call_logs` writes and no `EXOTEL_*`/`CALL_WEBHOOK_SECRET` settings. The delivery code is shown to the customer in the Customer App (once the order is out for delivery) and the customer tells it to the driver; the 50 m GPS proof is unchanged. If calling is wanted again, re-add a provider behind a new decision (the code is in git history before this change).
+
 Supersedes the "driver sees the customer's phone number after accepting" rule of [018](018-delivery-order-read-boundary.md)/[019](019-driver-location-foundation.md).
 
 ## 1. "Mark delivered" needs proof of arrival
