@@ -1,0 +1,51 @@
+# Render Blueprint for the Duo-Face API (Express + Socket.io). Secrets are NOT in this file:
+# every `sync: false` value is typed into the Render dashboard once (see docs/integration/STANDALONE_APK_GUIDE.md).
+services:
+  - type: web
+    name: duoface-server
+    runtime: node
+    rootDir: server
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22
+      # Firebase Admin (service account from Firebase console -> Project settings -> Service accounts)
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: PROFILE_ENCRYPTION_KEY
+        sync: false
+      - key: DELIVERY_OTP_SECRET
+        sync: false
+      - key: ADMIN_FIREBASE_UIDS
+        sync: false
+      - key: OPENCAGE_API_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      # Live driver location (Upstash Redis, rediss:// URL)
+      - key: REDIS_URL
+        sync: false
+      - key: PUSH_NOTIFICATIONS_ENABLED
+        value: "true"
+      # This service's own https address, e.g. https://duoface-server.onrender.com
+      - key: PUBLIC_BASE_URL
+        sync: false
+      # Only the web builds need CORS; the Android apps do not send an Origin header.
+      - key: CORS_ORIGIN
+        value: ""
+      # Add these after Cashfree approves the account (payments stay off until then):
+      # CASHFREE_APP_ID, CASHFREE_SECRET_KEY, CASHFREE_ENV

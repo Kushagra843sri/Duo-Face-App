@@ -32,7 +32,7 @@ Project settings → Your apps → add a **Web app**. Copy its config values int
 Project settings → Service accounts → Generate new private key. Put `project_id`, `client_email`, `private_key` into `server/.env` as `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` (see `server/.env.example`). **Never commit it, never put it in a mobile app, never paste it in chat.**
 
 ## 6. Push notifications (Android)
-Project settings → Your apps → add an **Android app** with package `com.duoface.customer`; download `google-services.json` and set `GOOGLE_SERVICES_JSON=<path>` for the build. The server sends through FCM with the same service account (no extra key). Push needs a development/production build, not Expo Go. iOS push needs an Apple developer account and APNs key and is not set up yet.
+Project settings → Your apps → add an **Android app** with package `com.allzbharat.app`; download `google-services.json` and set `GOOGLE_SERVICES_JSON=<path>` for the build. The server sends through FCM with the same service account (no extra key). Push needs a development/production build, not Expo Go. iOS push needs an Apple developer account and APNs key and is not set up yet.
 
 ## 7. Other server settings
 `PROFILE_ENCRYPTION_KEY` (32 random bytes, base64: the command is in `server/.env.example`) is required for profiles and for showing the delivery code in the Customer App. Redis (`REDIS_URL`, e.g. Upstash free tier) for live driver location. OpenCage, Cloudflare R2: only for geocoding and KYC photos.
